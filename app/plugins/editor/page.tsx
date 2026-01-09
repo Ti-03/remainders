@@ -256,30 +256,30 @@ export default function PluginEditorPage() {
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
       {/* Header */}
-      <header className="border-b border-neutral-800 p-4 flex items-center justify-between">
+      <header className="border-b border-neutral-800 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-sm tracking-widest uppercase">Plugin Code Viewer</h1>
           <p className="text-xs text-neutral-500">View and edit plugin source code</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-2 sm:gap-4 text-xs">
           <button
             onClick={() => router.push('/plugins')}
-            className="text-xs text-neutral-500 hover:text-white uppercase tracking-wider transition-colors"
+            className="text-neutral-500 hover:text-white uppercase tracking-wider transition-colors whitespace-nowrap"
           >
             Submit Plugin
           </button>
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-xs text-neutral-500 hover:text-white uppercase tracking-wider transition-colors"
+            className="text-neutral-500 hover:text-white uppercase tracking-wider transition-colors whitespace-nowrap"
           >
             Dashboard
           </button>
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-73px)]">
+      <div className="flex flex-col md:flex-row h-[calc(100vh-73px)]">
         {/* Plugin List Sidebar */}
-        <div className="w-80 border-r border-neutral-800 overflow-y-auto">
+        <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-neutral-800 overflow-y-auto max-h-[40vh] md:max-h-none">
           <div className="p-4 border-b border-neutral-800">
             <h2 className="text-xs uppercase tracking-widest text-neutral-500">Available Plugins</h2>
           </div>
@@ -340,10 +340,10 @@ export default function PluginEditorPage() {
           {selectedPlugin ? (
             <>
               {/* Plugin Header */}
-              <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-medium">{selectedPlugin.name}</h2>
-                  <p className="text-xs text-neutral-500 mt-1">{selectedPlugin.description}</p>
+              <div className="p-4 border-b border-neutral-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-medium truncate">{selectedPlugin.name}</h2>
+                  <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{selectedPlugin.description}</p>
                   {selectedPlugin.isBuiltIn && (
                     <span className="inline-block mt-2 px-2 py-1 bg-neutral-800 text-neutral-400 text-xs uppercase tracking-wider">
                       Built-in Plugin
@@ -351,11 +351,11 @@ export default function PluginEditorPage() {
                   )}
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {selectedPlugin.isBuiltIn ? (
                     <button
                       onClick={handleClone}
-                      className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider"
+                      className="px-3 sm:px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
                     >
                       Clone & Edit
                     </button>
@@ -364,7 +364,7 @@ export default function PluginEditorPage() {
                       {!isEditing ? (
                         <button
                           onClick={() => setIsEditing(true)}
-                          className="px-4 py-2 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-wider"
+                          className="px-3 sm:px-4 py-2 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
                         >
                           Edit Code
                         </button>
@@ -376,14 +376,14 @@ export default function PluginEditorPage() {
                               setEditedCode(selectedPlugin.source);
                               setError('');
                             }}
-                            className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider"
+                            className="px-3 sm:px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="px-4 py-2 bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-600 transition-colors text-xs uppercase tracking-wider"
+                            className="px-3 sm:px-4 py-2 bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-600 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
                           >
                             {saving ? 'Saving...' : 'Save Changes'}
                           </button>
@@ -412,12 +412,13 @@ export default function PluginEditorPage() {
                   <textarea
                     value={editedCode}
                     onChange={(e) => setEditedCode(e.target.value)}
-                    className="w-full h-full p-4 bg-neutral-950 text-white font-mono text-sm resize-none outline-none border-none"
+                    className="w-full h-full p-2 sm:p-4 bg-neutral-950 text-white font-mono text-xs sm:text-sm resize-none outline-none border-none overflow-x-auto"
                     spellCheck={false}
+                    style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
                   />
                 ) : (
-                  <pre className="w-full h-full p-4 bg-neutral-950 text-white font-mono text-sm overflow-auto">
-                    <code>{editedCode}</code>
+                  <pre className="w-full h-full p-2 sm:p-4 bg-neutral-950 text-white font-mono text-xs sm:text-sm overflow-auto">
+                    <code className="block whitespace-pre">{editedCode}</code>
                   </pre>
                 )}
               </div>
