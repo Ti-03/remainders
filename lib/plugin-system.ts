@@ -40,7 +40,8 @@ export function createPluginContext(
   height: number,
   viewMode: 'year' | 'life',
   settings: Record<string, any>,
-  timezone?: string
+  timezone?: string,
+  integrations?: { strava?: any[] }
 ): PluginContext {
   // Get current date in specified timezone
   let currentDate = new Date();
@@ -61,6 +62,7 @@ export function createPluginContext(
     height,
     viewMode,
     settings,
+    integrations,
     utils: {
       formatDate: (date: Date, format: string) => {
         // Simple date formatter

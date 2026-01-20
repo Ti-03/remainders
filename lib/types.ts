@@ -274,6 +274,9 @@ export interface PluginExecutionContext {
   /** Plugin configuration */
   config: Record<string, any>;
   
+  /** Full user settings (includes isMondayFirst, device, etc.) */
+  settings?: Record<string, any>;
+  
   /** Wallpaper width */
   width: number;
   
@@ -307,6 +310,11 @@ export interface PluginExecutionContext {
   
   /** Current date in user's timezone */
   currentDate?: Date;
+
+  /** Connected integrations data */
+  integrations?: {
+    strava?: any[]; // Array of activities
+  };
 }
 
 /**
@@ -314,16 +322,16 @@ export interface PluginExecutionContext {
  */
 export interface PluginRenderElement {
   /** Element type */
-  type: 'text' | 'rect' | 'circle' | 'line';
+  type: 'text' | 'rect' | 'circle' | 'line' | 'day-color-modifier' | 'legend-data';
   
   /** Element content (for text) */
   content?: string;
   
-  /** X position */
-  x: number;
+  /** X position (optional for modifier/legend types) */
+  x?: number;
   
-  /** Y position */
-  y: number;
+  /** Y position (optional for modifier/legend types) */
+  y?: number;
   
   /** Width (for rect) */
   width?: number;
@@ -348,6 +356,12 @@ export interface PluginRenderElement {
   
   /** Max width for text wrapping */
   maxWidth?: number;
+  
+  /** Date string for day-color-modifier (YYYY-MM-DD format) */
+  date?: string;
+  
+  /** Legend items for legend-data type */
+  items?: { label: string; color: string }[];
 }
 
 /**
@@ -380,6 +394,11 @@ export interface PluginContext {
     
     /** Get current day of year */
     getCurrentDayOfYear: () => number;
+  };
+  
+  /** Connected integrations data */
+  integrations?: {
+    strava?: any[];
   };
 }
 

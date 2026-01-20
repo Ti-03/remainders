@@ -78,6 +78,26 @@ export default function DashboardPage() {
   const [saveMessage, setSaveMessage] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
+  // Check for URL parameters (auth success/error)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const error = params.get('error');
+
+    if (success === 'strava_connected') {
+      setSaveMessage('✓ Strava Connected Successfully');
+      setTimeout(() => {
+        setSaveMessage('');
+        // Clean URL
+        window.history.replaceState({}, '', '/dashboard');
+      }, 3000);
+    } else if (error) {
+      setSaveMessage(`✗ Error: ${error.replace(/_/g, ' ')}`);
+      setTimeout(() => setSaveMessage(''), 5000);
+    }
+  }, []);
+  
   // Collapsible sections state
   const [themeColorsExpanded, setThemeColorsExpanded] = useState(false);
   const [typographyLayoutExpanded, setTypographyLayoutExpanded] = useState(false);
@@ -1215,6 +1235,28 @@ export default function DashboardPage() {
             onConfigure={handleConfigurePlugin}
           />
         </div>
+
+        {/* Integrations Section - Show if relevant plugins are installed */}
+        {plugins.some(p => p.pluginId === 'strava-activities') && (
+          <div className="p-6 bg-neutral-900 border border-neutral-800 rounded-lg space-y-4">
+            <h2 className="text-sm uppercase tracking-wider text-neutral-400">Integrations</h2>
+            <div className="flex items-center justify-between p-4 border border-neutral-800 rounded bg-black/20">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-[#FC4C02] rounded flex items-center justify-center text-white font-bold">S</div>
+                <div>
+                  <div className="text-sm font-medium text-white">Strava</div>
+                  <div className="text-xs text-neutral-500">Connect your account to sync activities</div>
+                </div>
+              </div>
+              <a
+                href={`/api/auth/strava?userId=${user.uid}`}
+                className="py-2 px-4 bg-white text-black text-xs uppercase tracking-widest hover:bg-neutral-200 transition-colors rounded"
+              >
+                Connect
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Config Management */}
         <div className="p-6 bg-neutral-900 border border-neutral-800 rounded-lg space-y-4">
