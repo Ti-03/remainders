@@ -78,6 +78,24 @@ export default function YearView({
   const daysLeft = calculateDaysLeftInYear(timezone);
   const totalDays = getTotalDaysInCurrentYear();
 
+  // Extract color modifiers and legend data from plugins (used by both views)
+  const colorModifiers = new Map<string, string>(); // "YYYY-MM-DD" -> color
+  let legendData: { color: string; label: string }[] = [];
+  
+  console.log('YearViewEnhanced: Processing plugin elements:', pluginElements.length);
+  
+  pluginElements.forEach((el: any) => {
+    if (el.type === 'day-color-modifier' && el.date && el.color) {
+      colorModifiers.set(el.date, el.color);
+    } else if (el.type === 'legend-data' && Array.isArray(el.items)) {
+      console.log('YearViewEnhanced: Found legend data:', el.items);
+      legendData = el.items;
+    }
+  });
+  
+  console.log('YearViewEnhanced: Final legendData length:', legendData.length);
+  console.log('YearViewEnhanced: Color modifiers count:', colorModifiers.size);
+
   // Days View Layout (weekly grid - 2 weeks per row)
   if (yearViewLayout === 'days') {
     const aspectRatio = height / width;
@@ -135,8 +153,17 @@ export default function YearView({
     // Create all dots
     const allDots = [];
     for (let day = 1; day <= totalDays; day++) {
+      // Construct date string for lookup
+      const dayDate = new Date(currentYear, 0, day); // Day of year to actual date
+      const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(dayDate.getDate()).padStart(2, '0');
+      const dateStr = `${currentYear}-${mm}-${dd}`;
+      
       let color;
-      if (day < currentDayOfYear) {
+      // Check for modifier first
+      if (colorModifiers.has(dateStr)) {
+        color = colorModifiers.get(dateStr)!;
+      } else if (day < currentDayOfYear) {
         color = colors.past;
       } else if (day === currentDayOfYear) {
         color = colors.current;
@@ -189,15 +216,59 @@ export default function YearView({
               left: '0px',
               width: '100%',
               display: 'flex',
+              flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
-              fontSize: `${statsFontSize}px`,
-              fontFamily: typography?.fontFamily || 'monospace',
             }}
           >
-            <span style={{ color: colors?.current || '#FF6B35' }}>{daysLeft}d left</span>
-            <span style={{ color: colors?.text || '#888888', margin: '0px 8px' }}>·</span>
-            <span style={{ color: colors?.text || '#888888' }}>{Math.round((currentDayOfYear / totalDays) * 100)}%</span>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                fontSize: `${statsFontSize}px`,
+                fontFamily: typography?.fontFamily || 'monospace',
+                marginBottom: legendData.length > 0 ? `${statsFontSize * 0.5}px` : '0px',
+              }}
+            >
+              <span style={{ color: colors?.current || '#FF6B35' }}>{daysLeft}d left</span>
+              <span style={{ color: colors?.text || '#888888', margin: '0px 8px' }}>·</span>
+              <span style={{ color: colors?.text || '#888888' }}>{Math.round((currentDayOfYear / totalDays) * 100)}%</span>
+            </div>
+            
+            {/* Legend - Only rendered if plugins provide data */}
+            {legendData.length > 0 && (
+              <div 
+                style={{
+                  display: 'flex',
+                  marginTop: '8px',
+                }}
+              >
+                {legendData.map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', margin: '0 8px' }}>
+                    <div 
+                      style={{ 
+                        width: `${statsFontSize * 0.6}px`, 
+                        height: `${statsFontSize * 0.6}px`, 
+                        borderRadius: '50%', 
+                        backgroundColor: item.color,
+                        marginRight: '6px'
+                      }} 
+                    />
+                    <span 
+                      style={{ 
+                        color: item.color, 
+                        fontSize: `${statsFontSize * 0.7}px`,
+                        fontFamily: typography?.fontFamily || 'monospace',
+                        opacity: 0.9
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -230,8 +301,10 @@ export default function YearView({
           );
         })}
 
-        {/* Plugin-added Elements */}
+        {/* Plugin-added Elements (excluding modifiers and legend data) */}
         {pluginElements.map((element, index) => {
+          if (element.type === 'day-color-modifier' || element.type === 'legend-data') return null;
+          
           if (element.type === 'text' && element.content != null) {
             const contentStr = String(element.content || '').trim();
             
@@ -346,7 +419,16 @@ export default function YearView({
 
       if (dayNum > 0 && dayNum <= daysInMonth) {
         globalDayCounter++;
-        if (globalDayCounter < currentDayOfYear) {
+        
+        // Construct date string for lookup
+        const mm = String(monthIndex + 1).padStart(2, '0');
+        const dd = String(dayNum).padStart(2, '0');
+        const dateStr = `${currentYear}-${mm}-${dd}`;
+        
+        // Check for modifier first
+        if (colorModifiers.has(dateStr)) {
+          color = colorModifiers.get(dateStr)!;
+        } else if (globalDayCounter < currentDayOfYear) {
           color = colors.past;
         } else if (globalDayCounter === currentDayOfYear) {
           color = colors.current;
@@ -447,15 +529,59 @@ export default function YearView({
             left: '0px',
             width: '100%',
             display: 'flex',
+            flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            fontSize: `${statsFontSize}px`,
-            fontFamily: typography?.fontFamily || 'monospace',
           }}
         >
-          <span style={{ color: colors?.current || '#FF6B35' }}>{daysLeft}d left</span>
-          <span style={{ color: colors?.text || '#888888', margin: '0px 8px' }}>·</span>
-          <span style={{ color: colors?.text || '#888888' }}>{Math.round((currentDayOfYear / totalDays) * 100)}%</span>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: `${statsFontSize}px`,
+              fontFamily: typography?.fontFamily || 'monospace',
+              marginBottom: legendData.length > 0 ? `${statsFontSize * 0.5}px` : '0px',
+            }}
+          >
+            <span style={{ color: colors?.current || '#FF6B35' }}>{daysLeft}d left</span>
+            <span style={{ color: colors?.text || '#888888', margin: '0px 8px' }}>·</span>
+            <span style={{ color: colors?.text || '#888888' }}>{Math.round((currentDayOfYear / totalDays) * 100)}%</span>
+          </div>
+          
+          {/* Legend - Only rendered if plugins provide data */}
+          {legendData.length > 0 && (
+            <div 
+              style={{
+                display: 'flex',
+                marginTop: '8px',
+              }}
+            >
+              {legendData.map((item: { color: string; label: string }, i: number) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', margin: '0 8px' }}>
+                  <div 
+                    style={{ 
+                      width: `${statsFontSize * 0.6}px`, 
+                      height: `${statsFontSize * 0.6}px`, 
+                      borderRadius: '50%', 
+                      backgroundColor: item.color,
+                      marginRight: '6px'
+                    }} 
+                  />
+                  <span 
+                    style={{ 
+                      color: item.color, 
+                      fontSize: `${statsFontSize * 0.7}px`,
+                      fontFamily: typography?.fontFamily || 'monospace',
+                      opacity: 0.9
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -520,6 +646,22 @@ export default function YearView({
             <div key={`plugin-${index}`} style={style}>
               {contentStr}
             </div>
+          );
+        } else if (element.type === 'circle') {
+          return (
+            <div
+              key={`plugin-${index}`}
+              style={{
+                position: 'absolute',
+                left: `${element.x}px`,
+                top: `${element.y}px`,
+                width: `${element.width}px`,
+                height: `${element.height}px`,
+                borderRadius: '50%',
+                backgroundColor: element.color || '#FC4C02',
+                zIndex: 10, // Ensure it sits on top of existing dots
+              }}
+            />
           );
         }
         return null;

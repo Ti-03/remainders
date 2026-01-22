@@ -1,12 +1,3 @@
-/**
- * Firebase Configuration and Utilities
- * 
- * Client-side Firebase setup for authentication and Firestore database.
- * Uses environment variables for configuration.
- * 
- * NOTE: This module only initializes Firebase in browser environments.
- * Server-side code should use direct REST API calls or Firebase Admin SDK.
- */
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { 
@@ -29,8 +20,12 @@ import {
   where,
   getDocs,
   Timestamp,
-  Firestore
+  Firestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from 'firebase/firestore';
+import { stravaPlugin } from './plugins/strava-plugin';
 
 // Firebase configuration from environment variables with fallbacks
 const firebaseConfig = {
@@ -56,11 +51,17 @@ if (typeof window !== 'undefined') {
   if (isFirebaseConfigured) {
     if (!getApps().length) {
       app = initializeApp(firebaseConfig);
+      // Initialize Firestore with specific settings to avoid multiple tab conflicts
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
     } else {
       app = getApps()[0];
+      db = getFirestore(app);
     }
     auth = getAuth(app);
-    db = getFirestore(app);
   } else {
     console.warn('Firebase not configured - running in demo mode. Add .env.local with Firebase credentials for full functionality.');
   }
@@ -124,11 +125,7 @@ export function onAuthChange(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
 
-/*if (!db) {
-    console.error('Firestore not initialized (server-side)');
-    return false;
-  }
-  *
+/**
  * Check if username is available
  */
 export async function isUsernameAvailable(username: string): Promise<boolean> {
@@ -283,6 +280,12 @@ export async function getAvailablePlugins(userId?: string) {
       // Show private plugins only to their author
       return userId && plugin.authorId === userId;
     });
+    
+    // Add built-in Strava plugin if not present
+    if (!plugins.find((p: any) => p.id === stravaPlugin.id)) {
+      plugins.push(stravaPlugin);
+    }
+    
     return { data: plugins, error: null };
   } catch (error: any) {
     console.error('Error fetching plugins:', error);

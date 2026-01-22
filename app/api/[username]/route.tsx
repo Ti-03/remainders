@@ -18,6 +18,8 @@ import YearView from '../wallpaper/year-view-enhanced';
 import { quotesPlugin } from '@/lib/plugins/quotes-plugin';
 import { habitTrackerPlugin } from '@/lib/plugins/habit-tracker-plugin';
 import { moonPhasePlugin } from '@/lib/plugins/moon-phase-plugin';
+import { stravaPlugin } from '@/lib/plugins/strava-plugin';
+import { getActivities } from '@/lib/strava';
 
 export const runtime = 'nodejs';
 
@@ -170,11 +172,26 @@ export async function GET(
       [quotesPlugin.id, quotesPlugin],
       [habitTrackerPlugin.id, habitTrackerPlugin],
       [moonPhasePlugin.id, moonPhasePlugin],
+      [stravaPlugin.id, stravaPlugin],
     ]);
 
     // Get current date in user's timezone
     const userTimezone = config.timezone || 'UTC';
     const currentDate = getDateInTimezone(userTimezone);
+
+    // Fetch Strava data if plugin is enabled
+    let stravaActivities: any[] = [];
+    const isStravaEnabled = config.plugins?.some(p => p.pluginId === 'strava-activities' && p.enabled);
+    
+    if (isStravaEnabled && config.userId) {
+      try {
+        console.log(`Fetching Strava activities for user ${config.userId}`);
+        stravaActivities = await getActivities(config.userId);
+        console.log(`Fetched ${stravaActivities.length} activities`);
+      } catch (error) {
+        console.error('Failed to fetch Strava activities:', error);
+      }
+    }
 
     // Execute plugins and collect render elements
     const pluginRenderElements: any[] = [];
@@ -222,6 +239,7 @@ export async function GET(
         console.log(`Executing plugin ${pluginConfig.pluginId}`);
         const elements = plugin.execute({
           config: pluginConfig.config || {},
+          settings: config, // Pass full user config (includes isMondayFirst)
           width: config.device.width,
           height: config.device.height,
           colors: config.colors,
@@ -230,6 +248,9 @@ export async function GET(
           viewMode: config.viewMode,
           timezone: userTimezone,
           currentDate: currentDate,
+          integrations: {
+            strava: stravaActivities
+          }
         });
         
         console.log(`Plugin ${pluginConfig.pluginId} returned ${elements?.length || 0} elements`);
