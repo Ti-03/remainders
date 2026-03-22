@@ -9,7 +9,7 @@
 
 import { ImageResponse } from '@vercel/og';
 import { NextRequest } from 'next/server';
-import { getUserConfigByUsername, getPlugin } from '@/lib/firebase-server';
+import { readConfigByUsername } from '@/lib/storage';
 import { Plugin, UserConfig } from '@/lib/types';
 import LifeView from '../wallpaper/life-view-enhanced';
 import YearView from '../wallpaper/year-view-enhanced';
@@ -93,8 +93,8 @@ export async function GET(
       });
     }
 
-    // Fetch user configuration from Firestore
-    const { data: configData, error: configError } = await getUserConfigByUsername(username);
+    // Fetch user configuration from local storage
+    const { data: configData, error: configError } = await readConfigByUsername(username);
 
     if (configError || !configData) {
       return new Response(`User configuration not found. Please complete your setup at ${request.nextUrl.origin}/dashboard`, { 
@@ -186,27 +186,8 @@ export async function GET(
         continue;
       }
       
-      // Try to get built-in plugin first
-      let plugin = availablePlugins.get(pluginConfig.pluginId);
-      
-      // If not built-in, try to load from Firestore
-      if (!plugin) {
-        try {
-          console.log(`Loading user plugin ${pluginConfig.pluginId} from Firestore`);
-          const { data: userPlugin, error } = await getPlugin(pluginConfig.pluginId);
-          if (userPlugin && userPlugin.code) {
-            // Execute user plugin code to get the plugin object
-            const pluginFunction = new Function(
-              'return (function() { ' + userPlugin.code + '; return typeof plugin !== "undefined" ? plugin : null; })()'
-            );
-            plugin = pluginFunction();
-          } else if (error) {
-            console.error(`Error loading plugin ${pluginConfig.pluginId}:`, error);
-          }
-        } catch (error: any) {
-          console.error(`Failed to load user plugin ${pluginConfig.pluginId}:`, error);
-        }
-      }
+      // Try to get built-in plugin
+      const plugin = availablePlugins.get(pluginConfig.pluginId);
       
       if (!plugin) {
         console.log(`Plugin ${pluginConfig.pluginId}: not found`);

@@ -1,46 +1,46 @@
-# <img src="public/logo.png" width="35" align="center" /> Remainders
+# Remainders (Self-Hosted Fork)
 
-<img align="right" src="public/Year.webp" alt="Year View" width="32%" />
+This is a fork of [Ti-03/remainders](https://github.com/Ti-03/remainders) — a wallpaper generator that creates time-aware lock screen images (life calendar, year calendar).
 
-**Memento Mori.** Your daily reminder to live intentionally. Generate time-aware wallpapers for your phone lock screen.
+## Changes from upstream
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-remainders.vercel.app-black)](https://remainders.vercel.app/)
-[![Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B)](https://ko-fi.com/ti003)
+This fork is simplified for **single-user, self-hosted** use:
 
-## Features
+- **Removed Firebase** — no Google authentication, no Firestore database. Configuration is stored as a local JSON file on disk.
+- **Added HTTP Basic Auth** — protects the dashboard and admin routes. The wallpaper API endpoints remain public so devices can fetch wallpapers without credentials.
+- **Removed Google Analytics** — no external tracking.
+- **Simplified plugin system** — only built-in plugins (quotes, habit tracker, moon phase). The plugin submission and editing pages are disabled.
+- **Root redirects to dashboard** — the public landing page is removed since this is a private instance.
 
-- **Year View** - Track daily progress with a dot grid
-- **Life View** - Visualize 80 years as 4,160 weeks
-- **Plugin System** - Create custom plugins (quotes, habits, moon phase, etc.)
-- **Device Support** - Optimized for various screen sizes
-- **Privacy First** - No data storage, generated on-the-fly
+## Deployment
 
-## How to Use
+Designed to run on [Coolify](https://coolify.io/) (or any Docker/Node host).
 
-**Quick Start:** Visit [remainders.vercel.app](https://remainders.vercel.app/) and use it instantly without login.
+### Environment variables
 
-**Full Customization:**
-1. Sign in with Google account 
-2. Go to Dashboard
-3. Configure wallpaper (view mode, birth date, theme, plugins)
-4. Copy your unique wallpaper URL
-5. [Set it as your lock screen](AUTOMATION.md) with daily auto-updates
+| Variable | Description | Default |
+|---|---|---|
+| `BASIC_AUTH_USER` | Username for HTTP Basic Auth (leave empty to disable) | — |
+| `BASIC_AUTH_PASSWORD` | Password for HTTP Basic Auth | — |
+| `NEXT_PUBLIC_APP_USERNAME` | Your username (used in wallpaper URL `/api/<username>`) | `user` |
+| `DATA_DIR` | Directory for config file storage (mount as persistent volume) | `./data` |
 
-## What's New
+### Coolify setup
 
-- 🎨 Full customization and control  
-- 🔌 Full plugin development system & plugin marketplace ([see guide](lib/plugins/README.md))
-- 💾 Import/export configuration with plugins
+1. Create a new service pointing to this repo
+2. Set the environment variables above
+3. Mount `./data` as a persistent volume so your config survives redeployments
+4. Your wallpaper URL will be `https://your-domain/api/<username>`
 
-## Upcoming Features
+## Development
 
-- Calendar sync
-- More built-in themes
-- More plugins
-- Support Desktop/Tablets/Big Displays
-- Advanced typography options
+```bash
+bun install
+bun run dev
+```
 
----
+Without `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` set, auth is skipped for local development.
 
-**Support this project:** [Buy Me a Coffee](https://ko-fi.com/ti003) ☕  
-**Contribute:** Open an issue to discuss changes or submit PRs!
+## Credits
+
+Original project by [Qutibah Ananzeh (Ti-03)](https://github.com/Ti-03/remainders).

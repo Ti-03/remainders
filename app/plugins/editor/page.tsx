@@ -8,10 +8,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 interface Plugin {
   id: string;
@@ -99,28 +96,20 @@ const BUILTIN_PLUGINS: Omit<Plugin, 'source'>[] = [
 ];
 
 export default function PluginEditorPage() {
-  const { user, loading } = useAuth();
   const router = useRouter();
   
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
   const [editedCode, setEditedCode] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loadingPlugins, setLoadingPlugins] = useState(true);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showSubmitForm, setShowSubmitForm] = useState(false);
 
   useEffect(() => {
     loadPlugins();
-  }, [user]);
+  }, []);
 
   const loadPlugins = async () => {
     setLoadingPlugins(true);
     try {
-      // Load built-in plugins with source code
       const builtInWithSource = await Promise.all(
         BUILTIN_PLUGINS.map(async (plugin) => {
           try {
@@ -139,32 +128,7 @@ export default function PluginEditorPage() {
         })
       );
 
-      // Load user plugins
-      let userPlugins: Plugin[] = [];
-      if (user && db) {
-        try {
-          const pluginsSnapshot = await getDocs(collection(db, 'plugins'));
-          userPlugins = pluginsSnapshot.docs
-            .filter(doc => doc.data().authorId === user.uid)
-            .map(doc => ({
-              id: doc.id,
-              name: doc.data().name,
-              description: doc.data().description,
-              source: doc.data().code,
-              isBuiltIn: false,
-              author: doc.data().author,
-              version: doc.data().version,
-              configSchema: doc.data().configSchema,
-              defaultSettings: doc.data().defaultSettings,
-              isPrivate: doc.data().isPrivate || false,
-            }));
-        } catch (err: any) {
-          console.error('Error loading user plugins:', err);
-        }
-      }
-
-      // Set all plugins at once
-      setPlugins([...builtInWithSource, ...userPlugins]);
+      setPlugins(builtInWithSource);
       setLoadingPlugins(false);
     } catch (err) {
       console.error('Error loading plugins:', err);
@@ -175,119 +139,9 @@ export default function PluginEditorPage() {
   const handleSelectPlugin = (plugin: Plugin) => {
     setSelectedPlugin(plugin);
     setEditedCode(plugin.source);
-    setIsEditing(false);
-    setError('');
-    setSuccess('');
   };
 
-  const handleSave = async () => {
-    if (!selectedPlugin || !user) return;
-
-    setSaving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      if (selectedPlugin.isBuiltIn) {
-        setError('Cannot edit built-in plugins. Clone this plugin to make changes.');
-        setSaving(false);
-        return;
-      }
-
-      // Validate code syntax
-      try {
-        new Function(editedCode);
-      } catch (e: any) {
-        setError(`Syntax error: ${e.message}`);
-        setSaving(false);
-        return;
-      }
-
-      // Update plugin in Firestore
-      const pluginRef = doc(db!, 'plugins', selectedPlugin.id);
-      await updateDoc(pluginRef, {
-        code: editedCode,
-        updatedAt: new Date(),
-      });
-
-      setSuccess('Plugin saved successfully!');
-      setIsEditing(false);
-      
-      // Update local state
-      setPlugins(plugins.map(p => 
-        p.id === selectedPlugin.id 
-          ? { ...p, source: editedCode } 
-          : p
-      ));
-      setSelectedPlugin({ ...selectedPlugin, source: editedCode });
-      
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('Failed to save plugin: ' + err.message);
-    }
-
-    setSaving(false);
-  };
-
-  const handleClone = () => {
-    if (!selectedPlugin) return;
-    
-    // Pre-fill the submission form with this plugin's code
-    const cloneData = {
-      name: `${selectedPlugin.name} (Clone)`,
-      description: selectedPlugin.description,
-      code: editedCode,
-      configSchema: selectedPlugin.configSchema,
-      defaultSettings: selectedPlugin.defaultSettings,
-    };
-    
-    router.push(`/plugins?clone=${encodeURIComponent(JSON.stringify(cloneData))}`);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedPlugin || !db) return;
-
-    try {
-      const pluginRef = doc(db, 'plugins', selectedPlugin.id);
-      await deleteDoc(pluginRef);
-
-      setPlugins(plugins.filter(p => p.id !== selectedPlugin.id));
-      setSelectedPlugin(null);
-      setSuccess('Plugin deleted successfully!');
-      setShowDeleteConfirm(false);
-      
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('Failed to delete plugin: ' + err.message);
-    }
-  };
-
-  const handleTogglePrivacy = async () => {
-    if (!selectedPlugin || selectedPlugin.isBuiltIn || !db) return;
-
-    try {
-      const newPrivacy = !selectedPlugin.isPrivate;
-      const pluginRef = doc(db, 'plugins', selectedPlugin.id);
-      await updateDoc(pluginRef, {
-        isPrivate: newPrivacy,
-        updatedAt: new Date(),
-      });
-
-      setPlugins(plugins.map(p => 
-        p.id === selectedPlugin.id 
-          ? { ...p, isPrivate: newPrivacy } 
-          : p
-      ));
-      setSelectedPlugin({ ...selectedPlugin, isPrivate: newPrivacy });
-      setSuccess(`Plugin is now ${newPrivacy ? 'private' : 'public'}!`);
-      
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('Failed to update privacy: ' + err.message);
-    }
-  };
-
-  if (loading || loadingPlugins) {
+  if (loadingPlugins) {
     return (
       <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
         <div className="text-white text-sm tracking-widest uppercase animate-pulse">
@@ -346,142 +200,24 @@ export default function PluginEditorPage() {
             ))}
           </div>
 
-          {/* User Plugins */}
-          {user && plugins.filter(p => !p.isBuiltIn).length > 0 && (
-            <div className="p-2">
-              <div className="px-2 py-1 text-xs uppercase tracking-wider text-neutral-600">
-                Your Plugins
-              </div>
-              {plugins.filter(p => !p.isBuiltIn).map(plugin => (
-                <button
-                  key={plugin.id}
-                  onClick={() => handleSelectPlugin(plugin)}
-                  className={`w-full text-left p-3 hover:bg-neutral-900 transition-colors border-l-2 ${
-                    selectedPlugin?.id === plugin.id 
-                      ? 'border-white bg-neutral-900' 
-                      : 'border-transparent'
-                  }`}
-                >
-                  <div className="text-sm font-medium">{plugin.name}</div>
-                  <div className="text-xs text-neutral-500 mt-1">{plugin.description}</div>
-                  <div className="text-xs text-neutral-600 mt-1">
-                    by {plugin.author} • v{plugin.version}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Code Viewer/Editor */}
+        {/* Code Viewer */}
         <div className="flex-1 flex flex-col">
           {selectedPlugin ? (
             <>
-              {/* Plugin Header */}
-              <div className="p-4 border-b border-neutral-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-medium truncate">{selectedPlugin.name}</h2>
-                  <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{selectedPlugin.description}</p>
-                  {selectedPlugin.isBuiltIn && (
-                    <span className="inline-block mt-2 px-2 py-1 bg-neutral-800 text-neutral-400 text-xs uppercase tracking-wider">
-                      Built-in Plugin
-                    </span>
-                  )}
-                  {!selectedPlugin.isBuiltIn && (
-                    <span className={`inline-block mt-2 px-2 py-1 text-xs uppercase tracking-wider ${
-                      selectedPlugin.isPrivate 
-                        ? 'bg-purple-900 text-purple-200' 
-                        : 'bg-green-900 text-green-200'
-                    }`}>
-                      {selectedPlugin.isPrivate ? 'Private' : 'Public'}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex gap-2 flex-wrap">
-                  {selectedPlugin.isBuiltIn ? (
-                    <button
-                      onClick={handleClone}
-                      className="px-3 sm:px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                    >
-                      Clone & Edit
-                    </button>
-                  ) : (
-                    <>
-                      {!isEditing ? (
-                        <>
-                          <button
-                            onClick={handleTogglePrivacy}
-                            className="px-3 sm:px-4 py-2 bg-purple-900 hover:bg-purple-800 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                          >
-                            {selectedPlugin.isPrivate ? 'Make Public' : 'Make Private'}
-                          </button>
-                          <button
-                            onClick={() => setIsEditing(true)}
-                            className="px-3 sm:px-4 py-2 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                          >
-                            Edit Code
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className="px-3 sm:px-4 py-2 bg-red-900 hover:bg-red-800 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              setIsEditing(false);
-                              setEditedCode(selectedPlugin.source);
-                              setError('');
-                            }}
-                            className="px-3 sm:px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="px-3 sm:px-4 py-2 bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-600 transition-colors text-xs uppercase tracking-wider whitespace-nowrap"
-                          >
-                            {saving ? 'Saving...' : 'Save Changes'}
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
+              <div className="p-4 border-b border-neutral-800">
+                <h2 className="text-lg font-medium truncate">{selectedPlugin.name}</h2>
+                <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{selectedPlugin.description}</p>
+                <span className="inline-block mt-2 px-2 py-1 bg-neutral-800 text-neutral-400 text-xs uppercase tracking-wider">
+                  Built-in Plugin
+                </span>
               </div>
 
-              {/* Messages */}
-              {error && (
-                <div className="mx-4 mt-4 p-3 bg-red-900 border border-red-700 rounded text-red-100 text-sm">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="mx-4 mt-4 p-3 bg-green-900 border border-green-700 rounded text-green-100 text-sm">
-                  {success}
-                </div>
-              )}
-
-              {/* Code Display */}
               <div className="flex-1 overflow-hidden">
-                {isEditing ? (
-                  <textarea
-                    value={editedCode}
-                    onChange={(e) => setEditedCode(e.target.value)}
-                    className="w-full h-full p-2 sm:p-4 bg-neutral-950 text-white font-mono text-xs sm:text-sm resize-none outline-none border-none overflow-x-auto"
-                    spellCheck={false}
-                    style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
-                  />
-                ) : (
-                  <pre className="w-full h-full p-2 sm:p-4 bg-neutral-950 text-white font-mono text-xs sm:text-sm overflow-auto">
-                    <code className="block whitespace-pre">{editedCode}</code>
-                  </pre>
-                )}
+                <pre className="w-full h-full p-2 sm:p-4 bg-neutral-950 text-white font-mono text-xs sm:text-sm overflow-auto">
+                  <code className="block whitespace-pre">{editedCode}</code>
+                </pre>
               </div>
             </>
           ) : (
@@ -491,43 +227,11 @@ export default function PluginEditorPage() {
                 <p className="text-xs text-neutral-700 mt-2">
                   Choose from the list on the left
                 </p>
-                <button
-                  onClick={() => router.push('/plugins')}
-                  className="mt-6 px-6 py-3 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-wider"
-                >
-                  Submit New Plugin
-                </button>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-900 border border-neutral-800 p-6 max-w-md w-full">
-            <h3 className="text-lg font-medium mb-4">Delete Plugin?</h3>
-            <p className="text-sm text-neutral-400 mb-6">
-              Are you sure you want to delete "{selectedPlugin?.name}"? This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-wider"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-900 hover:bg-red-800 transition-colors text-xs uppercase tracking-wider"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

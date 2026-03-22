@@ -7,8 +7,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
-import { saveUserProfile, saveUserConfig, isUsernameAvailable, getUserConfigByUsername } from '@/lib/firebase';
+import { saveUserConfig, getUserConfigByUsername } from '@/lib/firebase';
 import { UserConfig, DeviceModel, ViewMode, Plugin, PluginConfig, TextElement, DaysLayoutMode } from '@/lib/types';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import BirthDateInput from '@/components/BirthDateInput';
@@ -17,19 +16,11 @@ import ThemeColorPicker from '@/components/ThemeColorPicker';
 import PluginMarketplace from '@/components/PluginMarketplace';
 import TextElementsEditor from '@/components/TextElementsEditor';
 import { PRESET_THEMES, getThemeByName, Theme } from '@/lib/themes';
-import { seedExamplePlugins } from '@/lib/seed-plugins';
 
 export default function DashboardPage() {
-  const { user, userProfile, loading, refreshProfile } = useAuth();
-  const router = useRouter();
+  const { userProfile, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
-  
-  // Username setup
-  const [username, setUsername] = useState('');
-  const [usernameError, setUsernameError] = useState('');
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
-  const [checkingUsername, setCheckingUsername] = useState(false);
-  const [savingUsername, setSavingUsername] = useState(false);
+  const username = userProfile?.username || 'user';
   
   // Wallpaper config
   const [viewMode, setViewMode] = useState<ViewMode>('life');
@@ -99,17 +90,10 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && mounted) {
-      router.push('/');
+    if (mounted) {
+      loadUserConfig(username);
     }
-  }, [user, loading, mounted, router]);
-
-  useEffect(() => {
-    if (userProfile?.username) {
-      setUsername(userProfile.username);
-      loadUserConfig(userProfile.username);
-    }
-  }, [userProfile]);
+  }, [mounted]);
 
   // Track changes and trigger auto-save with debouncing
   useEffect(() => {
@@ -181,7 +165,7 @@ export default function DashboardPage() {
   }, [colors, fontFamily, fontSize, statsVisible, layout, plugins, textElements, viewMode, birthDate, isMondayFirst, yearViewLayout, daysLayoutMode, timezone, selectedDevice, config, isConfigComplete]);
 
   const loadUserConfig = async (username: string) => {
-    const { data } = await getUserConfigByUsername(username);
+    const { data } = await getUserConfigByUsername();
     if (data) {
       const cfg = data as UserConfig;
       setConfig(cfg);
@@ -301,64 +285,6 @@ export default function DashboardPage() {
     );
   };
 
-  const checkUsername = async (value: string) => {
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
-    setUsername(cleaned);
-    
-    if (cleaned.length < 3) {
-      setUsernameError('Username must be at least 3 characters');
-      setUsernameAvailable(null);
-      return;
-    }
-    
-    if (cleaned.length > 20) {
-      setUsernameError('Username must be less than 20 characters');
-      setUsernameAvailable(null);
-      return;
-    }
-
-    const reserved = ['admin', 'api', 'dashboard', 'login', 'logout', 'signup', 'signin', 'wallpaper'];
-    if (reserved.includes(cleaned)) {
-      setUsernameError('This username is reserved');
-      setUsernameAvailable(false);
-      return;
-    }
-
-    setCheckingUsername(true);
-    setUsernameError('');
-    
-    const available = await isUsernameAvailable(cleaned);
-    setUsernameAvailable(available);
-    
-    if (!available) {
-      setUsernameError('Username already taken');
-    }
-    
-    setCheckingUsername(false);
-  };
-
-  const handleSaveUsername = async () => {
-    if (!user || !usernameAvailable) return;
-    
-    setSavingUsername(true);
-    const { success, error } = await saveUserProfile(
-      user.uid,
-      username,
-      user.displayName || '',
-      user.email || ''
-    );
-    
-    if (success) {
-      await refreshProfile();
-      // Initialize default config
-      await saveConfig();
-    } else {
-      setUsernameError(error || 'Failed to save username');
-    }
-    
-    setSavingUsername(false);
-  };
-
   const handleThemeChange = (themeName: string) => {
     setSelectedTheme(themeName);
     if (themeName !== 'Custom') {
@@ -398,7 +324,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `remainders-config-${userProfile?.username || 'export'}.json`;
+    a.download = `remainders-config-${username || 'export'}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -428,7 +354,6 @@ export default function DashboardPage() {
         if (imported.device) setSelectedDevice(imported.device);
         if (imported.textElements) setTextElements(imported.textElements);
         if (imported.plugins) setPlugins(imported.plugins);
-        if (imported.timezone) setTimezone(imported.timezone);
         if (imported.timezone) setTimezone(imported.timezone);
         
         setSaveMessage('✓ Config imported successfully');
@@ -470,58 +395,55 @@ export default function DashboardPage() {
     setTimeout(() => setSaveMessage(''), 2000);
     
     // Save the reset state to database
-    if (user && userProfile?.username) {
-      const configToSave: Partial<UserConfig> = {
-        userId: user.uid,
-        username: userProfile.username,
-        birthDate,
-        viewMode,
-        device: selectedDevice ? {
-          brand: selectedDevice.brand,
-          modelName: selectedDevice.model,
-          width: selectedDevice.width,
-          height: selectedDevice.height,
-        } : { brand: '', modelName: '', width: 1170, height: 2532 },
-        colors: {
-          background: '#1a1a1a',
-          past: '#FFFFFF',
-          current: '#FF6B35',
-          future: '#404040',
-          text: '#888888',
-        },
-        typography: {
-          fontFamily: 'monospace',
-          fontSize: 0.035,
-          statsVisible: true,
-        },
-        layout: {
-          topPadding: 0.25,
-          bottomPadding: 0.15,
-          sidePadding: 0.18,
-          dotSpacing: 0.7,
-        },
-        textElements: [],
-        plugins: [],
-        isMondayFirst,
-        yearViewLayout,
-        daysLayoutMode,
-        timezone: 'UTC',
-        updatedAt: new Date(),
-      };
-      
-      await saveUserConfig(userProfile.username, configToSave);
-    }
+    const configToSave: Partial<UserConfig> = {
+      userId: 'owner',
+      username: username,
+      birthDate,
+      viewMode,
+      device: selectedDevice ? {
+        brand: selectedDevice.brand,
+        modelName: selectedDevice.model,
+        width: selectedDevice.width,
+        height: selectedDevice.height,
+      } : { brand: '', modelName: '', width: 1170, height: 2532 },
+      colors: {
+        background: '#1a1a1a',
+        past: '#FFFFFF',
+        current: '#FF6B35',
+        future: '#404040',
+        text: '#888888',
+      },
+      typography: {
+        fontFamily: 'monospace',
+        fontSize: 0.035,
+        statsVisible: true,
+      },
+      layout: {
+        topPadding: 0.25,
+        bottomPadding: 0.15,
+        sidePadding: 0.18,
+        dotSpacing: 0.7,
+      },
+      textElements: [],
+      plugins: [],
+      isMondayFirst,
+      yearViewLayout,
+      daysLayoutMode,
+      timezone: 'UTC',
+      updatedAt: new Date(),
+    };
+
+    await saveUserConfig(username, configToSave);
   };
 
   const saveConfig = async () => {
-    if (!user || !userProfile?.username) return;
     
     setSaving(true);
     setSaveMessage('');
     
     const configToSave: Partial<UserConfig> = {
-      userId: user.uid,
-      username: userProfile.username,
+      userId: 'owner',
+      username: username,
       birthDate,
       viewMode,
       device: selectedDevice ? {
@@ -546,7 +468,7 @@ export default function DashboardPage() {
       updatedAt: new Date(),
     };
 
-    const { success, error } = await saveUserConfig(userProfile.username, configToSave);
+    const { success, error } = await saveUserConfig(username, configToSave);
     
     if (success) {
       setSaveMessage('✓ Saved');
@@ -570,78 +492,6 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
-  // Username setup flow
-  if (!userProfile?.username) {
-    return (
-      <div className="min-h-screen bg-[#1a1a1a] text-white flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl tracking-widest uppercase">Choose Username</h1>
-            <p className="text-sm text-neutral-500">
-              This will be your personal wallpaper URL
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => checkUsername(e.target.value)}
-                placeholder="your-name"
-                className="w-full px-4 py-3 bg-neutral-900 border border-neutral-700 focus:border-white outline-none text-white placeholder:text-neutral-600 transition-colors"
-                autoFocus
-              />
-              
-              {username.length >= 3 && (
-                <div className="flex items-center gap-2 text-sm px-2">
-                  {checkingUsername ? (
-                    <span className="text-neutral-500">Checking...</span>
-                  ) : usernameAvailable === true ? (
-                    <>
-                      <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-green-500">Available</span>
-                    </>
-                  ) : usernameAvailable === false ? (
-                    <>
-                      <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      <span className="text-red-500">{usernameError}</span>
-                    </>
-                  ) : null}
-                </div>
-              )}
-            </div>
-
-            {username && usernameAvailable && (
-              <div className="p-4 bg-neutral-900 border border-neutral-700 rounded">
-                <div className="text-xs text-neutral-500 mb-1">Your wallpaper URL will be:</div>
-                <code className="text-sm text-white font-mono">
-                  {typeof window !== 'undefined' && window.location.origin}/api/{username}
-                </code>
-              </div>
-            )}
-
-            <button
-              onClick={handleSaveUsername}
-              disabled={!usernameAvailable || savingUsername}
-              className="w-full py-3 bg-white text-black disabled:bg-neutral-800 disabled:text-neutral-600 hover:bg-neutral-200 transition-colors uppercase tracking-widest text-sm font-medium"
-            >
-              {savingUsername ? 'Saving...' : 'Continue'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Main dashboard
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
@@ -651,7 +501,7 @@ export default function DashboardPage() {
           <img src="/logo.png" alt="Remainders" className="w-8 h-8" />
           <div>
             <h1 className="text-sm tracking-widest uppercase">Dashboard</h1>
-            <code className="text-xs text-neutral-500">/api/{userProfile.username}</code>
+            <code className="text-xs text-neutral-500">/api/{username}</code>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -684,14 +534,14 @@ export default function DashboardPage() {
               Your Wallpaper URL
             </div>
             <code className="text-sm text-white font-mono break-all">
-              {typeof window !== 'undefined' && window.location.origin}/api/{userProfile.username}
+              {typeof window !== 'undefined' && window.location.origin}/api/{username}
             </code>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => {
                 navigator.clipboard.writeText(
-                  `${window.location.origin}/api/${userProfile.username}`
+                  `${window.location.origin}/api/${username}`
                 );
               }}
               className="flex-1 py-2 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-widest"
@@ -699,7 +549,7 @@ export default function DashboardPage() {
               Copy URL
             </button>
             <a
-              href={`/api/${userProfile.username}`}
+              href={`/api/${username}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 py-2 bg-neutral-800 hover:bg-neutral-700 transition-colors text-xs uppercase tracking-widest text-center"

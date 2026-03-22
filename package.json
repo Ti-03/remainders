@@ -3,14 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "bun run --bun next dev",
+    "build": "bun run --bun next build",
+    "start": "bun run --bun next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@vercel/og": "^0.8.6",
-    "firebase": "^12.7.0",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"

@@ -8,7 +8,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
 import { getAvailablePlugins } from '@/lib/firebase';
 import { Plugin, PluginConfig } from '@/lib/types';
 
@@ -27,7 +26,6 @@ export default function PluginMarketplace({
   onToggle,
   onConfigure,
 }: PluginMarketplaceProps) {
-  const { user } = useAuth();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
@@ -37,11 +35,11 @@ export default function PluginMarketplace({
 
   useEffect(() => {
     loadPlugins();
-  }, [user]);
+  }, []);
 
   const loadPlugins = async () => {
     setLoading(true);
-    const { data } = await getAvailablePlugins(user?.uid);
+    const { data } = await getAvailablePlugins();
     if (data) {
       setPlugins(data as Plugin[]);
     }
@@ -54,31 +52,6 @@ export default function PluginMarketplace({
 
   const getInstalledPlugin = (pluginId: string) => {
     return installedPlugins.find(p => p.pluginId === pluginId);
-  };
-
-  const handleInstall = async (plugin: Plugin) => {
-    onInstall(plugin);
-    
-    // Track download count
-    try {
-      const { updateDoc, doc, increment } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      if (db) {
-        const pluginRef = doc(db, 'plugins', plugin.id);
-        await updateDoc(pluginRef, {
-          downloads: increment(1)
-        });
-        // Refresh plugin list to show updated count
-        await loadPlugins();
-      }
-    } catch (error) {
-      console.error('Failed to update download count:', error);
-      // Don't block installation if tracking fails
-    }
-  };
-
-  const handleUninstall = (pluginId: string) => {
-    onUninstall(pluginId);
   };
 
   const handleOpenSettings = (plugin: Plugin) => {
@@ -147,7 +120,7 @@ export default function PluginMarketplace({
                       Settings
                     </button>
                     <button
-                      onClick={() => handleUninstall(pluginConfig.pluginId)}
+                      onClick={() => onUninstall(pluginConfig.pluginId)}
                       className="px-3 py-1 bg-red-900 hover:bg-red-800 transition-colors text-xs uppercase tracking-wider"
                     >
                       Uninstall
@@ -214,7 +187,7 @@ export default function PluginMarketplace({
                   </div>
                   {!installed && (
                     <button
-                      onClick={() => handleInstall(plugin)}
+                      onClick={() => onInstall(plugin)}
                       className="w-full py-2 bg-white text-black hover:bg-neutral-200 transition-colors text-xs uppercase tracking-widest"
                     >
                       Install
