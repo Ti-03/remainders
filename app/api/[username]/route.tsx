@@ -12,6 +12,7 @@ import { NextRequest } from 'next/server';
 import { getUserConfigByUsername, getPlugin, logWallpaperEvent } from '@/lib/firebase-server';
 import { Plugin, UserConfig } from '@/lib/types';
 import { isPlanExpired } from '@/lib/plan-utils';
+import { loadPluginFromCode } from '@/lib/plugin-system';
 import { computeWallpaperHash, loadWallpaperCache, storeWallpaperCache } from '@/lib/wallpaper-cache';
 import LifeView from '../wallpaper/life-view-enhanced';
 import YearView from '../wallpaper/year-view-enhanced';
@@ -204,15 +205,17 @@ export async function GET(
       // Try to get built-in plugin first
       let plugin = availablePlugins.get(pluginConfig.pluginId);
 
-      // If not built-in, try to load from Firestore
+      // If not built-in, try to load from Firestore via isolated-vm sandbox
       if (!plugin) {
         try {
           const { data: userPlugin, error } = await getPlugin(pluginConfig.pluginId);
           if (userPlugin && userPlugin.code) {
-            const pluginFunction = new Function(
-              'return (function() { ' + userPlugin.code + '; return typeof plugin !== "undefined" ? plugin : null; })()'
-            );
-            plugin = pluginFunction();
+            const { plugin: loaded, error: loadError } = await loadPluginFromCode(userPlugin.code);
+            if (loadError) {
+              console.error(`Plugin ${pluginConfig.pluginId} failed to load:`, loadError);
+            } else {
+              plugin = loaded ?? undefined;
+            }
           } else if (error) {
             console.error(`Error loading plugin ${pluginConfig.pluginId}:`, error);
           }

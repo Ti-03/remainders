@@ -1,12 +1,17 @@
 /**
  * Plugin System Architecture
- * 
+ *
  * Provides a secure sandbox for executing community plugins server-side.
- * Plugins can modify calculations, add visual elements, or extend functionality.
+ * Uses isolated-vm to run plugin code in a separate V8 isolate with its own
+ * heap — no shared references to the host process, no prototype chain escapes.
+ * AST validation via acorn acts as a fast pre-filter to reject obviously
+ * dangerous code before paying the isolate creation cost.
  */
 
 import { PluginContext, PluginCalculationResult, PluginRenderResult, Plugin, PluginConfig } from './types';
 import { calculateWeeksLived, getCurrentDayOfYear } from './calcs';
+import * as acorn from 'acorn';
+import ivm from 'isolated-vm';
 
 /**
  * Maximum execution time for a single plugin (milliseconds)
@@ -14,22 +19,9 @@ import { calculateWeeksLived, getCurrentDayOfYear } from './calcs';
 const PLUGIN_TIMEOUT_MS = 500;
 
 /**
- * Allowlisted global APIs that plugins can access
- * Prevents access to dangerous APIs like fetch, eval, etc.
+ * Memory limit per isolate in MB
  */
-const ALLOWED_GLOBALS = {
-  Math,
-  Date,
-  JSON,
-  String,
-  Number,
-  Array,
-  Object,
-  console: {
-    log: (...args: any[]) => console.log('[Plugin]', ...args),
-    error: (...args: any[]) => console.error('[Plugin]', ...args),
-  }
-};
+const ISOLATE_MEMORY_MB = 8;
 
 /**
  * Create a sandboxed plugin context
@@ -67,7 +59,7 @@ export function createPluginContext(
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        
+
         return format
           .replace('YYYY', String(year))
           .replace('MM', month)
@@ -80,56 +72,103 @@ export function createPluginContext(
 }
 
 /**
- * Execute plugin calculation hook with timeout and error handling
+ * Serialize a PluginContext into a plain JSON-safe object for transfer into the isolate.
+ * Date objects become ISO strings; the utils namespace is rebuilt inside the isolate.
+ */
+function serializeContext(context: PluginContext): Record<string, any> {
+  return {
+    currentDate: context.currentDate.toISOString(),
+    birthDate: context.birthDate,
+    width: context.width,
+    height: context.height,
+    viewMode: context.viewMode,
+    settings: context.settings,
+  };
+}
+
+/**
+ * Run arbitrary JS inside an isolated-vm isolate.
+ * Returns the JSON-serialized result or throws on timeout / error.
+ */
+async function runInIsolate(code: string, contextJson: string): Promise<any> {
+  const isolate = new ivm.Isolate({ memoryLimit: ISOLATE_MEMORY_MB });
+  try {
+    const ivmContext = await isolate.createContext();
+    const jail = ivmContext.global;
+
+    // Expose a minimal log function (fire-and-forget, no return value)
+    await jail.set('__log', new ivm.Callback((...args: any[]) => {
+      console.log('[Plugin]', ...args);
+    }));
+
+    // Bootstrap: inject context and shim console/utils inside the isolate
+    const bootstrap = `
+      const __ctx = JSON.parse(${JSON.stringify(contextJson)});
+      __ctx.currentDate = new Date(__ctx.currentDate);
+      __ctx.utils = {
+        formatDate: function(date, format) {
+          var y = date.getFullYear();
+          var m = String(date.getMonth() + 1).padStart(2, '0');
+          var d = String(date.getDate()).padStart(2, '0');
+          return format.replace('YYYY', String(y)).replace('MM', m).replace('DD', d);
+        },
+        getWeeksLived: function(birthDate) {
+          var birth = new Date(birthDate);
+          var now = new Date();
+          return Math.floor((now.getTime() - birth.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        },
+        getCurrentDayOfYear: function() {
+          var now = new Date();
+          var start = new Date(now.getFullYear(), 0, 0);
+          return Math.floor((now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+        }
+      };
+      var console = { log: __log, error: __log };
+    `;
+
+    const script = await isolate.compileScript(
+      bootstrap + '\n' + code
+    );
+
+    const raw = await script.run(ivmContext, { timeout: PLUGIN_TIMEOUT_MS });
+    return raw;
+  } finally {
+    isolate.dispose();
+  }
+}
+
+/**
+ * Execute plugin calculation hook inside an isolated V8 instance.
  */
 export async function executePluginCalculation(
   pluginCode: string,
   context: PluginContext
 ): Promise<{ result: PluginCalculationResult | null; error: string | null }> {
   try {
-    // Create isolated function scope with only allowed globals
-    const pluginFunction = new Function(
-      'context',
-      'Math',
-      'Date',
-      'JSON',
-      'String',
-      'Number',
-      'Array',
-      'Object',
-      'console',
-      `
-        'use strict';
-        ${pluginCode}
-        
-        // Plugin must export a calculate function
-        if (typeof calculate !== 'function') {
-          throw new Error('Plugin must export a calculate() function');
-        }
-        
-        return calculate(context);
-      `
-    );
+    const validation = validatePluginCode(pluginCode);
+    if (!validation.valid) {
+      return { result: null, error: `Plugin validation failed: ${validation.errors.join(', ')}` };
+    }
 
-    // Execute with timeout
-    const result = await Promise.race([
-      Promise.resolve(pluginFunction(
-        context,
-        ALLOWED_GLOBALS.Math,
-        ALLOWED_GLOBALS.Date,
-        ALLOWED_GLOBALS.JSON,
-        ALLOWED_GLOBALS.String,
-        ALLOWED_GLOBALS.Number,
-        ALLOWED_GLOBALS.Array,
-        ALLOWED_GLOBALS.Object,
-        ALLOWED_GLOBALS.console
-      )),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Plugin execution timeout')), PLUGIN_TIMEOUT_MS)
-      )
-    ]);
+    const contextJson = JSON.stringify(serializeContext(context));
+    const wrapper = `
+      ${pluginCode}
 
-    return { result: result as PluginCalculationResult, error: null };
+      if (typeof calculate !== 'function') {
+        throw new Error('Plugin must export a calculate() function');
+      }
+      JSON.stringify(calculate(__ctx));
+    `;
+
+    const raw = await runInIsolate(wrapper, contextJson);
+    const result = raw ? JSON.parse(raw) : null;
+
+    // Rehydrate Date if the plugin returned one
+    if (result?.currentDate) {
+      result.currentDate = new Date(result.currentDate);
+    }
+
+    return { result, error: null };
   } catch (error: any) {
     console.error('Plugin calculation error:', error);
     return { result: null, error: error.message || 'Plugin execution failed' };
@@ -137,56 +176,31 @@ export async function executePluginCalculation(
 }
 
 /**
- * Execute plugin render hook with timeout and error handling
+ * Execute plugin render hook inside an isolated V8 instance.
  */
 export async function executePluginRender(
   pluginCode: string,
   context: PluginContext
 ): Promise<{ result: PluginRenderResult | null; error: string | null }> {
   try {
-    // Create isolated function scope
-    const pluginFunction = new Function(
-      'context',
-      'Math',
-      'Date',
-      'JSON',
-      'String',
-      'Number',
-      'Array',
-      'Object',
-      'console',
-      `
-        'use strict';
-        ${pluginCode}
-        
-        // Plugin must export a render function
-        if (typeof render !== 'function') {
-          throw new Error('Plugin must export a render() function');
-        }
-        
-        return render(context);
-      `
-    );
+    const validation = validatePluginCode(pluginCode);
+    if (!validation.valid) {
+      return { result: null, error: `Plugin validation failed: ${validation.errors.join(', ')}` };
+    }
 
-    // Execute with timeout
-    const result = await Promise.race([
-      Promise.resolve(pluginFunction(
-        context,
-        ALLOWED_GLOBALS.Math,
-        ALLOWED_GLOBALS.Date,
-        ALLOWED_GLOBALS.JSON,
-        ALLOWED_GLOBALS.String,
-        ALLOWED_GLOBALS.Number,
-        ALLOWED_GLOBALS.Array,
-        ALLOWED_GLOBALS.Object,
-        ALLOWED_GLOBALS.console
-      )),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Plugin execution timeout')), PLUGIN_TIMEOUT_MS)
-      )
-    ]);
+    const contextJson = JSON.stringify(serializeContext(context));
+    const wrapper = `
+      ${pluginCode}
 
-    return { result: result as PluginRenderResult, error: null };
+      if (typeof render !== 'function') {
+        throw new Error('Plugin must export a render() function');
+      }
+      JSON.stringify(render(__ctx));
+    `;
+
+    const raw = await runInIsolate(wrapper, contextJson);
+    const result = raw ? JSON.parse(raw) : null;
+    return { result, error: null };
   } catch (error: any) {
     console.error('Plugin render error:', error);
     return { result: null, error: error.message || 'Plugin execution failed' };
@@ -194,35 +208,125 @@ export async function executePluginRender(
 }
 
 /**
- * Validate plugin code for security risks
+ * Execute a plugin's top-level code inside an isolate and return the exported
+ * plugin object. Used by the [username] route to load user-defined plugins
+ * from Firestore safely.
+ */
+export async function loadPluginFromCode(
+  code: string
+): Promise<{ plugin: Plugin | null; error: string | null }> {
+  try {
+    const validation = validatePluginCode(code);
+    if (!validation.valid) {
+      return { plugin: null, error: `Plugin validation failed: ${validation.errors.join(', ')}` };
+    }
+
+    const isolate = new ivm.Isolate({ memoryLimit: ISOLATE_MEMORY_MB });
+    try {
+      const ivmContext = await isolate.createContext();
+      const jail = ivmContext.global;
+
+      await jail.set('__log', new ivm.Callback((...args: any[]) => {
+        console.log('[Plugin]', ...args);
+      }));
+
+      const script = await isolate.compileScript(`
+        var console = { log: __log, error: __log };
+        ${code};
+        typeof plugin !== 'undefined' ? JSON.stringify(plugin) : 'null';
+      `);
+
+      const raw = await script.run(ivmContext, { timeout: PLUGIN_TIMEOUT_MS });
+      const pluginObj = raw ? JSON.parse(raw as string) : null;
+      return { plugin: pluginObj, error: null };
+    } finally {
+      isolate.dispose();
+    }
+  } catch (error: any) {
+    console.error('Plugin load error:', error);
+    return { plugin: null, error: error.message || 'Failed to load plugin' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AST-based pre-validation (fast filter before isolate creation)
+// ---------------------------------------------------------------------------
+
+/**
+ * Dangerous identifiers that plugins must not reference.
+ * Checked via AST walking to reject code early, before paying isolate cost.
+ */
+const BLOCKED_IDENTIFIERS = new Set([
+  'eval', 'Function', 'require', 'import', 'fetch',
+  'XMLHttpRequest', 'process', 'global', 'globalThis',
+  'self', 'window', '__dirname', '__filename',
+  'Proxy', 'Reflect', 'WebSocket', 'Worker',
+  'SharedArrayBuffer', 'Atomics',
+]);
+
+/**
+ * Recursively walk an AST node and call the visitor on every node.
+ */
+function walkAst(node: any, visitor: (n: any) => void) {
+  if (!node || typeof node !== 'object') return;
+  visitor(node);
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    if (Array.isArray(child)) {
+      child.forEach((c) => walkAst(c, visitor));
+    } else if (child && typeof child === 'object' && child.type) {
+      walkAst(child, visitor);
+    }
+  }
+}
+
+/**
+ * Validate plugin code for security risks using AST analysis.
+ * Acts as a fast pre-filter — even though isolated-vm provides true isolation,
+ * rejecting known-bad patterns early avoids wasting isolate creation time and
+ * provides clear error messages to plugin authors.
  */
 export function validatePluginCode(code: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  
-  // Check for dangerous patterns
-  const dangerousPatterns = [
-    { pattern: /eval\s*\(/gi, message: 'eval() is not allowed' },
-    { pattern: /Function\s*\(/gi, message: 'Function constructor is not allowed' },
-    { pattern: /import\s+/gi, message: 'import statements are not allowed' },
-    { pattern: /require\s*\(/gi, message: 'require() is not allowed' },
-    { pattern: /process\./gi, message: 'process access is not allowed' },
-    { pattern: /global\./gi, message: 'global access is not allowed' },
-    { pattern: /fetch\s*\(/gi, message: 'fetch() is not allowed' },
-    { pattern: /XMLHttpRequest/gi, message: 'XMLHttpRequest is not allowed' },
-    { pattern: /__dirname/gi, message: '__dirname is not allowed' },
-    { pattern: /__filename/gi, message: '__filename is not allowed' },
-  ];
-
-  for (const { pattern, message } of dangerousPatterns) {
-    if (pattern.test(code)) {
-      errors.push(message);
-    }
-  }
 
   // Check code length (prevent massive plugins)
   if (code.length > 50000) {
     errors.push('Plugin code exceeds maximum length (50KB)');
   }
+
+  // Parse with acorn — reject unparseable code
+  let ast: acorn.Program;
+  try {
+    ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'script' });
+  } catch (e: any) {
+    errors.push(`Plugin code has syntax errors: ${e.message}`);
+    return { valid: false, errors };
+  }
+
+  // Walk the AST and flag dangerous patterns
+  walkAst(ast, (node: any) => {
+    // Block dangerous identifiers used anywhere
+    if (node.type === 'Identifier' && BLOCKED_IDENTIFIERS.has(node.name)) {
+      errors.push(`Access to '${node.name}' is not allowed`);
+    }
+
+    // Block import declarations and dynamic import()
+    if (node.type === 'ImportDeclaration') {
+      errors.push('import declarations are not allowed');
+    }
+    if (node.type === 'ImportExpression') {
+      errors.push('dynamic import() is not allowed');
+    }
+
+    // Block computed member access on dangerous targets (e.g. this["eval"])
+    if (
+      node.type === 'MemberExpression' &&
+      node.computed &&
+      node.object?.type === 'ThisExpression'
+    ) {
+      errors.push('Computed property access on "this" is not allowed');
+    }
+  });
 
   // Check for required functions
   if (!code.includes('function calculate') && !code.includes('function render')) {

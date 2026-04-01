@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import admin from 'firebase-admin';
+import { timingSafeEqual } from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -81,9 +82,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in data field' }, { status: 400 });
     }
 
-    // Verify Ko-fi token
+    // Verify Ko-fi token — fail loudly if not configured
     const expectedToken = process.env.KOFI_VERIFICATION_TOKEN;
-    if (!expectedToken || payload!.verification_token !== expectedToken) {
+    if (!expectedToken) {
+      console.error('Ko-fi webhook: KOFI_VERIFICATION_TOKEN is not configured');
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+    }
+
+    // Use timing-safe comparison to prevent timing attacks
+    const receivedToken = payload!.verification_token || '';
+    const tokenBuffer = Buffer.from(receivedToken);
+    const expectedBuffer = Buffer.from(expectedToken);
+    if (tokenBuffer.length !== expectedBuffer.length ||
+        !timingSafeEqual(tokenBuffer, expectedBuffer)) {
       console.warn('Ko-fi webhook: invalid verification token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -200,6 +211,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Always return 200 to prevent Ko-fi from retrying on server errors
-    return NextResponse.json({ ok: true, error: error.message }, { status: 200 });
+    // Never expose internal error details to external callers
+    return NextResponse.json({ ok: true }, { status: 200 });
   }
 }

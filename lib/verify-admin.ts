@@ -21,7 +21,7 @@ export async function verifyAdminRequest(request: NextRequest): Promise<AdminCal
   if (!app) return null;
 
   try {
-    const decoded = await admin.auth(app).verifyIdToken(token);
+    const decoded = await admin.auth(app).verifyIdToken(token, true);
     const db = getAdminFirestore();
     if (!db) return null;
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminRequest } from '@/lib/verify-admin';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getAdminFirestore, getAdminApp } from '@/lib/firebase-admin';
 import admin from 'firebase-admin';
 
 export const runtime = 'nodejs';
@@ -67,6 +67,14 @@ export async function POST(
 
   try {
     await batch.commit();
+
+    // Revoke the user's refresh tokens so the plan change takes effect immediately
+    // rather than waiting up to 1 hour for the existing ID token to expire
+    const app = getAdminApp();
+    if (app) {
+      await admin.auth(app).revokeRefreshTokens(userId);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

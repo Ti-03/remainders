@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
+    "@types/acorn": "^6.0.4",
     "@vercel/og": "^0.8.6",
+    "acorn": "^8.16.0",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.7.0",
+    "isolated-vm": "^6.1.2",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
