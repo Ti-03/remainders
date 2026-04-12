@@ -104,6 +104,8 @@ export default function DashboardPage() {
   // Auto-save with debouncing
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveStatusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate if config is complete (needed before useEffects)
   const isConfigComplete = viewMode === 'year' 
@@ -184,7 +186,16 @@ export default function DashboardPage() {
       // Set new timeout for auto-save
       saveTimeoutRef.current = setTimeout(() => {
         setAutoSaving(true);
-        saveConfig().finally(() => {
+        setSaveStatus('saving');
+        saveConfig().then(() => {
+          setSaveStatus('saved');
+          if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+          saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
+        }).catch(() => {
+          setSaveStatus('error');
+          if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+          saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000);
+        }).finally(() => {
           setAutoSaving(false);
         });
       }, 2000); // 2 seconds after last change
@@ -667,6 +678,13 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {hasUnsavedChanges && (
+              <div className="flex items-center gap-2 text-xs text-yellow-500 px-1">
+                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full flex-shrink-0" />
+                Unsaved changes will be saved automatically once setup is complete.
+              </div>
+            )}
+
             <button
               onClick={handleSaveUsername}
               disabled={!usernameAvailable || savingUsername}
@@ -690,6 +708,30 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-sm tracking-widest uppercase">Dashboard</h1>
             <code className="text-xs text-neutral-500">/api/{userProfile.username}</code>
+          </div>
+          {/* Save-status widget */}
+          <div className={`flex items-center gap-1.5 text-xs transition-opacity duration-300 ${saveStatus === 'idle' && !hasUnsavedChanges ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            {saveStatus === 'saving' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-neutral-400">Saving...</span>
+              </>
+            ) : saveStatus === 'saved' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                <span className="text-green-500">All changes saved</span>
+              </>
+            ) : saveStatus === 'error' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                <span className="text-red-400">Save failed</span>
+              </>
+            ) : hasUnsavedChanges ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                <span className="text-yellow-500">Unsaved changes</span>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-4">
