@@ -939,6 +939,7 @@ export default function DashboardPage() {
               studyStartDate={studyStartDate}
               universityName={universityName}
               studyDurationYears={studyDurationYears}
+              selectedDeviceLabel={selectedDevice?.model || ''}
               onStudyStartDateChange={setStudyStartDate}
               onUniversityNameChange={setUniversityName}
               onStudyDurationYearsChange={setStudyDurationYears}

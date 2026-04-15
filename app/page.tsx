@@ -291,6 +291,7 @@ export default function Home() {
                 studyStartDate={studyStartDate}
                 universityName={universityName}
                 studyDurationYears={studyDurationYears}
+                selectedDeviceLabel={selectedDevice?.model || ''}
                 onStudyStartDateChange={setStudyStartDate}
                 onUniversityNameChange={setUniversityName}
                 onStudyDurationYearsChange={setStudyDurationYears}
@@ -340,10 +341,13 @@ export default function Home() {
                 href={wallpaperUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
+                className={viewMode === 'student'
+                  ? 'block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white transition-colors hover:bg-white/10'
+                  : 'text-xs text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5'
+                }
                 aria-label="Open wallpaper preview in new tab"
               >
-                Preview Wallpaper
+                {viewMode === 'student' ? 'Install' : 'Preview Wallpaper'}
               </a>
             </div>
 

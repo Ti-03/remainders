@@ -87,34 +87,28 @@ export default function StudentView({
   const cols = Math.ceil(totalWeeks / rows);
 
   const aspectRatio = height / width;
-  const safeTop = height * (aspectRatio > 2.0 ? Math.max(layout.topPadding, 0.16) : layout.topPadding);
-  const safeBottom = height * layout.bottomPadding;
-  const adjustedSidePadding = aspectRatio > 2.0
-    ? Math.min(layout.sidePadding, 0.1)
-    : layout.sidePadding;
-  const sidePadding = width * adjustedSidePadding;
+  const sidePadding = width * (aspectRatio > 2.0 ? 0.12 : 0.1);
+  const contentCenterY = height * (aspectRatio > 2.0 ? 0.63 : 0.6);
 
-  const titleFontSize = Math.max(28, width * typography.fontSize * 1.15);
-  const metaFontSize = Math.max(16, titleFontSize * 0.58);
-  const footerFontSize = Math.max(16, width * typography.fontSize * 0.9);
-  const headerHeight = titleFontSize + metaFontSize + 36;
-  const footerHeight = typography.statsVisible ? footerFontSize + 28 : 0;
+  const titleFontSize = Math.max(24, width * typography.fontSize * 0.82);
+  const metaFontSize = Math.max(14, titleFontSize * 0.58);
+  const statsFontSize = Math.max(15, width * typography.fontSize * 0.7);
 
-  const availableWidth = width - sidePadding * 2;
-  const availableHeight = height - safeTop - safeBottom - headerHeight - footerHeight;
+  const previewGridWidth = Math.min(width * 0.62, width - sidePadding * 2);
+  const horizontalGap = Math.max(3, Math.floor(Math.max(layout.dotSpacing, 0.45) * 3));
+  const verticalGap = Math.max(8, Math.floor(Math.max(layout.dotSpacing, 0.5) * 7));
 
-  const horizontalGap = Math.max(1, Math.floor(Math.max(layout.dotSpacing, 0.35) * 4));
-  const verticalGap = Math.max(6, Math.floor(Math.max(layout.dotSpacing, 0.45) * 10));
-
-  const dotSizeFromWidth = (availableWidth - horizontalGap * (cols - 1)) / cols;
-  const dotSizeFromHeight = (availableHeight - verticalGap * (rows - 1)) / rows;
-  const dotSize = Math.max(2, Math.floor(Math.min(dotSizeFromWidth, dotSizeFromHeight, 18)));
+  const dotSizeFromWidth = (previewGridWidth - horizontalGap * (cols - 1)) / cols;
+  const dotSizeFromHeight = (height * 0.12 - verticalGap * (rows - 1)) / rows;
+  const dotSize = Math.max(3, Math.floor(Math.min(dotSizeFromWidth, dotSizeFromHeight, 14)));
 
   const gridWidth = cols * dotSize + (cols - 1) * horizontalGap;
   const gridHeight = rows * dotSize + (rows - 1) * verticalGap;
-  const startX = Math.max(sidePadding, (width - gridWidth) / 2);
-  const startY = safeTop + headerHeight + Math.max(0, (availableHeight - gridHeight) / 2);
-  const footerY = startY + gridHeight + 24;
+  const startX = (width - gridWidth) / 2;
+  const startY = contentCenterY - gridHeight / 2;
+  const titleY = startY - (titleFontSize + metaFontSize + 26);
+  const statsY = startY + gridHeight + 26;
+  const dateRowY = statsY + statsFontSize + 18;
 
   const dots = [];
   for (let index = 0; index < totalWeeks; index++) {
@@ -141,10 +135,11 @@ export default function StudentView({
   }
 
   const programLabel = `${safeDurationYears} year${safeDurationYears === 1 ? '' : 's'}`;
-  const metaLabel = `Started ${formatMonthYear(startDate)} | Ends ${formatMonthYear(graduationDate)} | ${programLabel}`;
+  const metaLabel = `Student Calendar`;
   const footerLabel = isComplete
     ? `Completed | Graduated ${formatMonthYear(graduationDate)}`
-    : `${progressPercent}% complete | ${weeksRemaining}w left | ${formatMonthYear(graduationDate)}`;
+    : `${weeksRemaining}w left | ${progressPercent}% complete`;
+  const dateRowLabel = `${formatMonthYear(startDate)} | ${programLabel} | ${formatMonthYear(graduationDate)}`;
 
   return (
     <div
@@ -152,6 +147,7 @@ export default function StudentView({
         width: '100%',
         height: '100%',
         backgroundColor: colors.background,
+        backgroundImage: 'radial-gradient(circle at top, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0) 38%)',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -177,13 +173,13 @@ export default function StudentView({
       <div
         style={{
           position: 'absolute',
-          top: `${safeTop}px`,
+          top: `${titleY}px`,
           left: `${sidePadding}px`,
           width: `${width - sidePadding * 2}px`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '10px',
+          gap: '6px',
           textAlign: 'center',
         }}
       >
@@ -192,6 +188,7 @@ export default function StudentView({
             fontSize: `${titleFontSize}px`,
             fontFamily: typography.fontFamily,
             color: colors.past,
+            maxWidth: `${width * 0.68}px`,
           }}
         >
           {universityName.trim()}
@@ -201,6 +198,8 @@ export default function StudentView({
             fontSize: `${metaFontSize}px`,
             fontFamily: typography.fontFamily,
             color: colors.text,
+            textTransform: 'uppercase',
+            letterSpacing: '0.28em',
           }}
         >
           {metaLabel}
@@ -219,23 +218,43 @@ export default function StudentView({
       </div>
 
       {typography.statsVisible && (
-        <div
-          style={{
-            position: 'absolute',
-            top: `${footerY}px`,
-            left: `${sidePadding}px`,
-            width: `${width - sidePadding * 2}px`,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            fontSize: `${footerFontSize}px`,
-            fontFamily: typography.fontFamily,
-            color: colors.text,
-            textAlign: 'center',
-          }}
-        >
-          {footerLabel}
-        </div>
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: `${statsY}px`,
+              left: `${sidePadding}px`,
+              width: `${width - sidePadding * 2}px`,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: `${statsFontSize}px`,
+              fontFamily: typography.fontFamily,
+              color: colors.current,
+              textAlign: 'center',
+            }}
+          >
+            {footerLabel}
+          </div>
+
+          <div
+            style={{
+              position: 'absolute',
+              top: `${dateRowY}px`,
+              left: `${sidePadding}px`,
+              width: `${width - sidePadding * 2}px`,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: `${Math.max(12, statsFontSize * 0.85)}px`,
+              fontFamily: typography.fontFamily,
+              color: colors.text,
+              textAlign: 'center',
+            }}
+          >
+            {dateRowLabel}
+          </div>
+        </>
       )}
 
       {textElements.map((element) => {
