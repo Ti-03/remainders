@@ -191,7 +191,7 @@ export async function GET(
       config.viewMode === 'student' &&
       (!config.studyStartDate || !config.universityName || !config.studyDurationYears)
     ) {
-      return new Response('Student details are required for Student View. Please configure in dashboard.', { status: 400 });
+      return new Response('Goal details are required for Goal View. Please configure in dashboard.', { status: 400 });
     }
     
     if (!config.device || !config.device.width || !config.device.height) {
@@ -217,7 +217,7 @@ export async function GET(
       });
 
       if (!normalized.ok) {
-        return new Response(`Invalid student view configuration: ${normalized.error}`, { status: 400 });
+        return new Response(`Invalid goal view configuration: ${normalized.error}`, { status: 400 });
       }
 
       studentInput = normalized.value;

@@ -92,7 +92,7 @@ export default function StudentDetailsInput({
             Define your Wallpaper
           </h3>
           <p className="text-sm text-neutral-500">
-            Build a student countdown that ends with graduation in July.
+            Build a goal countdown that ends with your graduation deadline.
           </p>
         </div>
       </div>
@@ -198,7 +198,7 @@ export default function StudentDetailsInput({
       <div className="rounded-[30px] border border-white/8 bg-[#0b0b0d] px-4 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
         <div className="text-center">
           <h4 className="text-[28px] font-semibold tracking-tight text-white">
-            Student Calendar
+            Goal Calendar
           </h4>
           <p className="mt-2 text-sm text-neutral-500">
             Count down to your graduation deadline

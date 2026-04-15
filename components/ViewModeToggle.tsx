@@ -37,7 +37,7 @@ export default function ViewModeToggle({ selectedMode, onChange }: ViewModeToggl
           }
         `}
       >
-        Student View
+        Goal View
       </button>
       <button
         onClick={() => onChange('year')}

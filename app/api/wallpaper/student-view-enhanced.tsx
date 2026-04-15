@@ -135,7 +135,7 @@ export default function StudentView({
   }
 
   const programLabel = `${safeDurationYears} year${safeDurationYears === 1 ? '' : 's'}`;
-  const metaLabel = `Student Calendar`;
+  const metaLabel = `Goal Calendar`;
   const footerLabel = isComplete
     ? `Completed | Graduated ${formatMonthYear(graduationDate)}`
     : `${weeksRemaining}w left | ${progressPercent}% complete`;
