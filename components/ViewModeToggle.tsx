@@ -14,7 +14,7 @@ interface ViewModeToggleProps {
 
 export default function ViewModeToggle({ selectedMode, onChange }: ViewModeToggleProps) {
   return (
-    <div className="w-full flex p-1 bg-white/5 rounded-lg border border-white/5">
+    <div className="w-full flex p-1 bg-white/5 rounded-lg border border-white/5 gap-1">
       <button
         onClick={() => onChange('life')}
         className={`
@@ -26,6 +26,18 @@ export default function ViewModeToggle({ selectedMode, onChange }: ViewModeToggl
         `}
       >
         Life View
+      </button>
+      <button
+        onClick={() => onChange('student')}
+        className={`
+          flex-1 py-2 text-xs uppercase tracking-widest font-medium rounded transition-all
+          ${selectedMode === 'student'
+            ? 'bg-white text-black shadow-sm'
+            : 'text-neutral-500 hover:text-neutral-300'
+          }
+        `}
+      >
+        Student View
       </button>
       <button
         onClick={() => onChange('year')}

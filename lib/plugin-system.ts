@@ -8,7 +8,7 @@
  * dangerous code before paying the isolate creation cost.
  */
 
-import { PluginContext, PluginCalculationResult, PluginRenderResult, Plugin, PluginConfig } from './types';
+import { PluginContext, PluginCalculationResult, PluginRenderResult, Plugin, PluginConfig, ViewMode } from './types';
 import { calculateWeeksLived, getCurrentDayOfYear } from './calcs';
 import * as acorn from 'acorn';
 import ivm from 'isolated-vm';
@@ -30,7 +30,7 @@ export function createPluginContext(
   birthDate: string,
   width: number,
   height: number,
-  viewMode: 'year' | 'life',
+  viewMode: ViewMode,
   settings: Record<string, any>,
   timezone?: string
 ): PluginContext {

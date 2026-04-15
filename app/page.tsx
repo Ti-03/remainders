@@ -6,9 +6,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserProfile, DeviceModel } from '@/lib/types';
+import { UserProfile, DeviceModel, ViewMode } from '@/lib/types';
 import DeviceSelector from '@/components/DeviceSelector';
 import BirthDateInput from '@/components/BirthDateInput';
+import StudentDetailsInput from '@/components/StudentDetailsInput';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import SetupInstructions from '@/components/SetupInstructions';
 import AuthButton from '@/components/AuthButton';
@@ -18,8 +19,11 @@ const THEME_COLOR = 'FFFFFF'; // White for minimalist dark theme
 
 export default function Home() {
   const [birthDate, setBirthDate] = useState('');
+  const [studyStartDate, setStudyStartDate] = useState('');
+  const [universityName, setUniversityName] = useState('');
+  const [studyDurationYears, setStudyDurationYears] = useState('');
   const [selectedDevice, setSelectedDevice] = useState<DeviceModel | null>(null);
-  const [viewMode, setViewMode] = useState<'year' | 'life'>('life');
+  const [viewMode, setViewMode] = useState<ViewMode>('life');
   const [isMondayFirst, setIsMondayFirst] = useState(false);
   const [yearViewLayout, setYearViewLayout] = useState<'months' | 'days'>('months');
   const [daysLayoutMode, setDaysLayoutMode] = useState<'calendar' | 'continuous'>('continuous');
@@ -34,6 +38,9 @@ export default function Home() {
       if (savedProfile) {
         const profile: UserProfile = JSON.parse(savedProfile);
         setBirthDate(profile.birthDate);
+        setStudyStartDate(profile.studyStartDate || '');
+        setUniversityName(profile.universityName || '');
+        setStudyDurationYears(profile.studyDurationYears ? String(profile.studyDurationYears) : '');
         if (profile.viewMode) setViewMode(profile.viewMode);
         if (profile.isMondayFirst !== undefined) setIsMondayFirst(profile.isMondayFirst);
         if ((profile as any).yearViewLayout) setYearViewLayout((profile as any).yearViewLayout);
@@ -55,10 +62,19 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    if (birthDate && selectedDevice) {
-      const profile: any = {
-        birthDate,
+
+    const canSaveProfile = selectedDevice !== null && (
+      viewMode === 'year' ||
+      (viewMode === 'life' && Boolean(birthDate)) ||
+      (viewMode === 'student' && Boolean(studyStartDate) && Boolean(universityName.trim()) && Boolean(studyDurationYears))
+    );
+
+    if (canSaveProfile && selectedDevice) {
+        const profile: any = {
+          birthDate,
+          studyStartDate,
+          universityName: universityName.trim(),
+          studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
         themeColor: THEME_COLOR,
         device: {
           brand: selectedDevice.brand,
@@ -78,11 +94,12 @@ export default function Home() {
         console.error('Failed to save profile:', error);
       }
     }
-  }, [birthDate, selectedDevice, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
+  }, [birthDate, studyStartDate, universityName, studyDurationYears, selectedDevice, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
 
   const generateWallpaperUrl = () => {
     if (!selectedDevice || !selectedDevice.width || !selectedDevice.height) return;
     if (viewMode === 'life' && !birthDate) return;
+    if (viewMode === 'student' && (!studyStartDate || !universityName.trim() || !studyDurationYears)) return;
 
     const params = new URLSearchParams({
       themeColor: THEME_COLOR,
@@ -93,6 +110,12 @@ export default function Home() {
 
     if (viewMode === 'life' && birthDate) {
       params.append('birthDate', birthDate);
+    }
+
+    if (viewMode === 'student') {
+      params.append('studyStartDate', studyStartDate);
+      params.append('universityName', universityName.trim());
+      params.append('studyDurationYears', studyDurationYears);
     }
     
     if (viewMode === 'year') {
@@ -118,7 +141,7 @@ export default function Home() {
     if (isFormComplete && !wallpaperUrl) {
       generateWallpaperUrl();
     }
-  }, [selectedDevice, birthDate, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
+  }, [selectedDevice, birthDate, studyStartDate, universityName, studyDurationYears, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
 
   const copyToClipboard = async () => {
     try {
@@ -130,7 +153,11 @@ export default function Home() {
     }
   };
 
-  const isFormComplete = viewMode === 'year' ? selectedDevice !== null : (birthDate && selectedDevice);
+  const isFormComplete = viewMode === 'year'
+    ? selectedDevice !== null
+    : viewMode === 'life'
+      ? Boolean(birthDate && selectedDevice)
+      : Boolean(studyStartDate && universityName.trim() && studyDurationYears && selectedDevice);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-between p-6 selection:bg-white selection:text-black relative">
@@ -257,6 +284,17 @@ export default function Home() {
           <div className="space-y-6">
             {viewMode === 'life' && (
               <BirthDateInput value={birthDate} onChange={setBirthDate} />
+            )}
+
+            {viewMode === 'student' && (
+              <StudentDetailsInput
+                studyStartDate={studyStartDate}
+                universityName={universityName}
+                studyDurationYears={studyDurationYears}
+                onStudyStartDateChange={setStudyStartDate}
+                onUniversityNameChange={setUniversityName}
+                onStudyDurationYearsChange={setStudyDurationYears}
+              />
             )}
 
             <DeviceSelector

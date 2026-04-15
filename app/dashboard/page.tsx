@@ -12,6 +12,7 @@ import { saveUserProfile, saveUserConfig, isUsernameAvailable, getUserConfigByUs
 import { UserConfig, DeviceModel, ViewMode, Plugin, PluginConfig, TextElement, DaysLayoutMode, BackgroundImage } from '@/lib/types';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import BirthDateInput from '@/components/BirthDateInput';
+import StudentDetailsInput from '@/components/StudentDetailsInput';
 import DeviceSelector from '@/components/DeviceSelector';
 import ThemeColorPicker from '@/components/ThemeColorPicker';
 import PluginMarketplace from '@/components/PluginMarketplace';
@@ -42,6 +43,9 @@ export default function DashboardPage() {
   // Wallpaper config
   const [viewMode, setViewMode] = useState<ViewMode>('life');
   const [birthDate, setBirthDate] = useState('');
+  const [studyStartDate, setStudyStartDate] = useState('');
+  const [universityName, setUniversityName] = useState('');
+  const [studyDurationYears, setStudyDurationYears] = useState('');
   const [selectedDevice, setSelectedDevice] = useState<DeviceModel | null>(null);
   const [isMondayFirst, setIsMondayFirst] = useState(false);
   const [yearViewLayout, setYearViewLayout] = useState<'months' | 'days'>('months');
@@ -108,9 +112,11 @@ export default function DashboardPage() {
   const saveStatusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate if config is complete (needed before useEffects)
-  const isConfigComplete = viewMode === 'year' 
-    ? selectedDevice !== null 
-    : (birthDate && selectedDevice);
+  const isConfigComplete = viewMode === 'year'
+    ? selectedDevice !== null
+    : viewMode === 'life'
+      ? Boolean(birthDate && selectedDevice)
+      : Boolean(studyStartDate && universityName.trim() && studyDurationYears && selectedDevice);
 
   useEffect(() => {
     setMounted(true);
@@ -150,6 +156,9 @@ export default function DashboardPage() {
       backgroundImage: JSON.stringify(backgroundImage),
       viewMode,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      studyDurationYears,
       isMondayFirst,
       yearViewLayout,
       daysLayoutMode,
@@ -166,6 +175,9 @@ export default function DashboardPage() {
       backgroundImage: JSON.stringify(config.backgroundImage ?? null),
       viewMode: config.viewMode,
       birthDate: config.birthDate,
+      studyStartDate: config.studyStartDate,
+      universityName: config.universityName,
+      studyDurationYears: config.studyDurationYears != null ? String(config.studyDurationYears) : '',
       isMondayFirst: config.isMondayFirst,
       yearViewLayout: config.yearViewLayout,
       daysLayoutMode: config.daysLayoutMode,
@@ -207,7 +219,7 @@ export default function DashboardPage() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [colors, fontFamily, fontSize, statsVisible, layout, plugins, textElements, backgroundImage, viewMode, birthDate, isMondayFirst, yearViewLayout, daysLayoutMode, timezone, selectedDevice, config, isConfigComplete]);
+  }, [colors, fontFamily, fontSize, statsVisible, layout, plugins, textElements, backgroundImage, viewMode, birthDate, studyStartDate, universityName, studyDurationYears, isMondayFirst, yearViewLayout, daysLayoutMode, timezone, selectedDevice, config, isConfigComplete]);
 
   const loadUserConfig = async (username: string) => {
     const { data } = await getUserConfigByUsername(username);
@@ -216,6 +228,9 @@ export default function DashboardPage() {
       setConfig(cfg);
       setViewMode(cfg.viewMode || 'life');
       setBirthDate(cfg.birthDate || '');
+      setStudyStartDate(cfg.studyStartDate || '');
+      setUniversityName(cfg.universityName || '');
+      setStudyDurationYears(cfg.studyDurationYears ? String(cfg.studyDurationYears) : '');
       setIsMondayFirst(cfg.isMondayFirst || false);
       setYearViewLayout(cfg.yearViewLayout || 'months');
       setDaysLayoutMode(cfg.daysLayoutMode || 'continuous');
@@ -290,6 +305,9 @@ export default function DashboardPage() {
         plugins: [],
         viewMode: viewMode,
         birthDate: birthDate,
+        studyStartDate: studyStartDate,
+        universityName: universityName.trim(),
+        studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
         isMondayFirst: isMondayFirst,
         yearViewLayout: yearViewLayout,
         daysLayoutMode: daysLayoutMode,
@@ -432,6 +450,9 @@ export default function DashboardPage() {
       layout,
       viewMode,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
       isMondayFirst,
       yearViewLayout,
       daysLayoutMode,
@@ -469,6 +490,9 @@ export default function DashboardPage() {
         if (imported.layout) setLayout(imported.layout);
         if (imported.viewMode) setViewMode(imported.viewMode);
         if (imported.birthDate) setBirthDate(imported.birthDate);
+        if (imported.studyStartDate) setStudyStartDate(imported.studyStartDate);
+        if (imported.universityName) setUniversityName(imported.universityName);
+        if (imported.studyDurationYears !== undefined) setStudyDurationYears(String(imported.studyDurationYears));
         if (imported.isMondayFirst !== undefined) setIsMondayFirst(imported.isMondayFirst);
         if (imported.yearViewLayout) setYearViewLayout(imported.yearViewLayout);
         if (imported.daysLayoutMode) setDaysLayoutMode(imported.daysLayoutMode);
@@ -522,6 +546,9 @@ export default function DashboardPage() {
         userId: user.uid,
         username: userProfile.username,
         birthDate,
+        studyStartDate,
+        universityName: universityName.trim(),
+        studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
         viewMode,
         device: selectedDevice ? {
           brand: selectedDevice.brand,
@@ -570,6 +597,9 @@ export default function DashboardPage() {
       userId: user.uid,
       username: userProfile.username,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
       viewMode,
       device: selectedDevice ? {
         brand: selectedDevice.brand,
@@ -902,6 +932,17 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <BirthDateInput value={birthDate} onChange={setBirthDate} />
             </div>
+          )}
+
+          {viewMode === 'student' && (
+            <StudentDetailsInput
+              studyStartDate={studyStartDate}
+              universityName={universityName}
+              studyDurationYears={studyDurationYears}
+              onStudyStartDateChange={setStudyStartDate}
+              onUniversityNameChange={setUniversityName}
+              onStudyDurationYearsChange={setStudyDurationYears}
+            />
           )}
 
           {/* Device Selector */}
@@ -1545,6 +1586,9 @@ export default function DashboardPage() {
           <div className="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-2 shadow-lg">
             <div className="text-xs text-red-400">
               {viewMode === 'life' && !birthDate && '⚠ Please enter your birth date'}
+              {viewMode === 'student' && !studyStartDate && '⚠ Please enter your study start date'}
+              {viewMode === 'student' && studyStartDate && !universityName.trim() && '⚠ Please enter your university'}
+              {viewMode === 'student' && studyStartDate && universityName.trim() && !studyDurationYears && '⚠ Please enter your study duration'}
               {!selectedDevice && '⚠ Please select a device'}
             </div>
           </div>
