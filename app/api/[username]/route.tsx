@@ -189,7 +189,7 @@ export async function GET(
 
     if (
       config.viewMode === 'student' &&
-      (!config.studyStartDate || !config.universityName || !config.studyDurationYears)
+      (!config.studyStartDate || !config.universityName || (!config.goalEndDate && !config.studyDurationYears))
     ) {
       return new Response('Goal details are required for Goal View. Please configure in dashboard.', { status: 400 });
     }
@@ -206,13 +206,14 @@ export async function GET(
     }
 
     let studentInput:
-      | { studyStartDate: string; universityName: string; studyDurationYears: number }
+      | { studyStartDate: string; universityName: string; goalEndDate: string; studyDurationYears: number }
       | null = null;
 
     if (config.viewMode === 'student') {
       const normalized = normalizeStudentViewInput({
         studyStartDate: config.studyStartDate || '',
         universityName: config.universityName || '',
+        goalEndDate: config.goalEndDate || '',
         studyDurationYears: config.studyDurationYears || '',
       });
 
@@ -223,6 +224,7 @@ export async function GET(
       studentInput = normalized.value;
       config.studyStartDate = studentInput.studyStartDate;
       config.universityName = studentInput.universityName;
+      config.goalEndDate = studentInput.goalEndDate;
       config.studyDurationYears = studentInput.studyDurationYears;
     }
 
@@ -277,6 +279,7 @@ export async function GET(
           birthDate: config.birthDate,
           studyStartDate: config.studyStartDate,
           universityName: config.universityName,
+          goalEndDate: config.goalEndDate,
           studyDurationYears: config.studyDurationYears,
           viewMode: config.viewMode,
           timezone: userTimezone,
@@ -328,7 +331,7 @@ export async function GET(
         ...viewProps,
         studyStartDate: studentInput?.studyStartDate || '',
         universityName: studentInput?.universityName || 'University',
-        studyDurationYears: studentInput?.studyDurationYears || 4,
+        goalEndDate: studentInput?.goalEndDate || '',
       });
     } else {
       view = YearView({

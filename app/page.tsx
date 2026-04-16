@@ -10,9 +10,11 @@ import { UserProfile, DeviceModel, ViewMode } from '@/lib/types';
 import DeviceSelector from '@/components/DeviceSelector';
 import BirthDateInput from '@/components/BirthDateInput';
 import StudentDetailsInput from '@/components/StudentDetailsInput';
+import GoalWallpaperPreview from '@/components/GoalWallpaperPreview';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import SetupInstructions from '@/components/SetupInstructions';
 import AuthButton from '@/components/AuthButton';
+import { deriveGoalEndDateFromDuration } from '@/lib/student-view';
 
 const STORAGE_KEY = 'remainders-user-profile';
 const THEME_COLOR = 'FFFFFF'; // White for minimalist dark theme
@@ -21,7 +23,7 @@ export default function Home() {
   const [birthDate, setBirthDate] = useState('');
   const [studyStartDate, setStudyStartDate] = useState('');
   const [universityName, setUniversityName] = useState('');
-  const [studyDurationYears, setStudyDurationYears] = useState('');
+  const [goalEndDate, setGoalEndDate] = useState('');
   const [selectedDevice, setSelectedDevice] = useState<DeviceModel | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('life');
   const [isMondayFirst, setIsMondayFirst] = useState(false);
@@ -40,7 +42,11 @@ export default function Home() {
         setBirthDate(profile.birthDate);
         setStudyStartDate(profile.studyStartDate || '');
         setUniversityName(profile.universityName || '');
-        setStudyDurationYears(profile.studyDurationYears ? String(profile.studyDurationYears) : '');
+        setGoalEndDate(
+          profile.goalEndDate ||
+          deriveGoalEndDateFromDuration(profile.studyStartDate || '', profile.studyDurationYears) ||
+          ''
+        );
         if (profile.viewMode) setViewMode(profile.viewMode);
         if (profile.isMondayFirst !== undefined) setIsMondayFirst(profile.isMondayFirst);
         if ((profile as any).yearViewLayout) setYearViewLayout((profile as any).yearViewLayout);
@@ -66,15 +72,15 @@ export default function Home() {
     const canSaveProfile = selectedDevice !== null && (
       viewMode === 'year' ||
       (viewMode === 'life' && Boolean(birthDate)) ||
-      (viewMode === 'student' && Boolean(studyStartDate) && Boolean(universityName.trim()) && Boolean(studyDurationYears))
+      (viewMode === 'student' && Boolean(studyStartDate) && Boolean(universityName.trim()) && Boolean(goalEndDate))
     );
 
     if (canSaveProfile && selectedDevice) {
-        const profile: any = {
-          birthDate,
-          studyStartDate,
-          universityName: universityName.trim(),
-          studyDurationYears: studyDurationYears ? parseInt(studyDurationYears, 10) : undefined,
+      const profile: any = {
+        birthDate,
+        studyStartDate,
+        universityName: universityName.trim(),
+        goalEndDate,
         themeColor: THEME_COLOR,
         device: {
           brand: selectedDevice.brand,
@@ -94,12 +100,12 @@ export default function Home() {
         console.error('Failed to save profile:', error);
       }
     }
-  }, [birthDate, studyStartDate, universityName, studyDurationYears, selectedDevice, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
+  }, [birthDate, studyStartDate, universityName, goalEndDate, selectedDevice, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
 
-  const generateWallpaperUrl = () => {
+  const buildWallpaperPath = () => {
     if (!selectedDevice || !selectedDevice.width || !selectedDevice.height) return;
     if (viewMode === 'life' && !birthDate) return;
-    if (viewMode === 'student' && (!studyStartDate || !universityName.trim() || !studyDurationYears)) return;
+    if (viewMode === 'student' && (!studyStartDate || !universityName.trim() || !goalEndDate)) return;
 
     const params = new URLSearchParams({
       themeColor: THEME_COLOR,
@@ -115,7 +121,7 @@ export default function Home() {
     if (viewMode === 'student') {
       params.append('studyStartDate', studyStartDate);
       params.append('universityName', universityName.trim());
-      params.append('studyDurationYears', studyDurationYears);
+      params.append('goalEndDate', goalEndDate);
     }
     
     if (viewMode === 'year') {
@@ -128,11 +134,18 @@ export default function Home() {
       }
     }
 
+    return `/api/wallpaper?${params.toString()}`;
+  };
+
+  const generateWallpaperUrl = () => {
+    const path = buildWallpaperPath();
+    if (!path) return;
+
     const baseUrl = typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
       : '';
 
-    const url = `${baseUrl}/api/wallpaper?${params.toString()}`;
+    const url = `${baseUrl}${path}`;
     setWallpaperUrl(url);
   };
 
@@ -141,7 +154,7 @@ export default function Home() {
     if (isFormComplete && !wallpaperUrl) {
       generateWallpaperUrl();
     }
-  }, [selectedDevice, birthDate, studyStartDate, universityName, studyDurationYears, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
+  }, [selectedDevice, birthDate, studyStartDate, universityName, goalEndDate, viewMode, isMondayFirst, yearViewLayout, daysLayoutMode]);
 
   const copyToClipboard = async () => {
     try {
@@ -157,7 +170,7 @@ export default function Home() {
     ? selectedDevice !== null
     : viewMode === 'life'
       ? Boolean(birthDate && selectedDevice)
-      : Boolean(studyStartDate && universityName.trim() && studyDurationYears && selectedDevice);
+      : Boolean(studyStartDate && universityName.trim() && goalEndDate && selectedDevice);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-between p-6 selection:bg-white selection:text-black relative">
@@ -290,11 +303,11 @@ export default function Home() {
               <StudentDetailsInput
                 studyStartDate={studyStartDate}
                 universityName={universityName}
-                studyDurationYears={studyDurationYears}
+                goalEndDate={goalEndDate}
                 selectedDeviceLabel={selectedDevice?.model || ''}
                 onStudyStartDateChange={setStudyStartDate}
                 onUniversityNameChange={setUniversityName}
-                onStudyDurationYearsChange={setStudyDurationYears}
+                onGoalEndDateChange={setGoalEndDate}
               />
             )}
 
@@ -336,20 +349,25 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="text-center">
-              <a
-                href={wallpaperUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={viewMode === 'student'
-                  ? 'block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white transition-colors hover:bg-white/10'
-                  : 'text-xs text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5'
-                }
-                aria-label="Open wallpaper preview in new tab"
-              >
-                {viewMode === 'student' ? 'Install' : 'Preview Wallpaper'}
-              </a>
-            </div>
+            {viewMode === 'student' && (
+              <GoalWallpaperPreview
+                previewUrl={wallpaperUrl}
+              />
+            )}
+
+            {viewMode !== 'student' && (
+              <div className="text-center">
+                <a
+                  href={wallpaperUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
+                  aria-label="Open wallpaper preview in new tab"
+                >
+                  Preview Wallpaper
+                </a>
+              </div>
+            )}
 
             <SetupInstructions wallpaperUrl={wallpaperUrl} selectedBrand={selectedDevice?.brand || ''} />
           </section>

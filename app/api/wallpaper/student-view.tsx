@@ -5,7 +5,7 @@ interface StudentViewProps {
   height: number;
   studyStartDate: string;
   universityName: string;
-  studyDurationYears: number;
+  goalEndDate: string;
 }
 
 export function StudentView(props: StudentViewProps) {

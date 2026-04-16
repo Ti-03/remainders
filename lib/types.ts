@@ -53,6 +53,9 @@ export interface UserProfile {
   /** University name for student view */
   universityName?: string;
 
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
+
   /** Study duration in years */
   studyDurationYears?: number;
   
@@ -97,6 +100,9 @@ export interface WallpaperParams {
 
   /** University name for student view */
   universityName?: string;
+
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
 
   /** Study duration in years */
   studyDurationYears?: number;
@@ -184,6 +190,9 @@ export interface UserConfig {
 
   /** University name for student view */
   universityName?: string;
+
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
 
   /** Study duration in years */
   studyDurationYears?: number;
@@ -348,6 +357,9 @@ export interface PluginExecutionContext {
   /** University name */
   universityName?: string;
 
+  /** Goal end date */
+  goalEndDate?: string;
+
   /** Study duration in years */
   studyDurationYears?: number;
   
@@ -417,6 +429,9 @@ export interface PluginContext {
 
   /** University name */
   universityName?: string;
+
+  /** Goal end date */
+  goalEndDate?: string;
 
   /** Study duration in years */
   studyDurationYears?: number;

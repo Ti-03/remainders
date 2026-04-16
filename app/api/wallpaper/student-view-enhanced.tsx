@@ -1,13 +1,13 @@
 import { CSSProperties } from 'react';
 import { PluginRenderElement, TextElement } from '@/lib/types';
-import { getAcademicGraduationDate } from '@/lib/student-view';
+import { getGoalSpanYears } from '@/lib/student-view';
 
 interface StudentViewProps {
   width: number;
   height: number;
   studyStartDate: string;
   universityName: string;
-  studyDurationYears: number;
+  goalEndDate: string;
   colors?: {
     background: string;
     past: string;
@@ -33,14 +33,9 @@ interface StudentViewProps {
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-function formatMonthYear(date: Date): string {
-  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export default function StudentView({
@@ -48,7 +43,7 @@ export default function StudentView({
   height,
   studyStartDate,
   universityName,
-  studyDurationYears,
+  goalEndDate,
   colors = {
     background: '#1a1a1a',
     past: '#FFFFFF',
@@ -62,10 +57,10 @@ export default function StudentView({
     statsVisible: true,
   },
   layout = {
-    topPadding: 0.18,
-    bottomPadding: 0.12,
+    topPadding: 0.25,
+    bottomPadding: 0.14,
     sidePadding: 0.10,
-    dotSpacing: 0.7,
+    dotSpacing: 0.5,
   },
   textElements = [],
   pluginElements = [],
@@ -73,58 +68,66 @@ export default function StudentView({
   backgroundImage,
 }: StudentViewProps) {
   const startDate = new Date(studyStartDate);
-  const safeDurationYears = clamp(Math.round(studyDurationYears || 4), 1, 10);
-  const graduationDate = getAcademicGraduationDate(startDate, safeDurationYears);
-  const totalWeeks = Math.max(1, Math.ceil((graduationDate.getTime() - startDate.getTime()) / WEEK_MS));
-
+  const endDate = new Date(goalEndDate);
+  const totalWeeks = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / WEEK_MS));
   const elapsedWeeksRaw = Math.floor((currentDate.getTime() - startDate.getTime()) / WEEK_MS);
   const completedWeeks = clamp(elapsedWeeksRaw, 0, totalWeeks);
   const weeksRemaining = Math.max(totalWeeks - completedWeeks, 0);
-  const progressPercent = Math.round((completedWeeks / totalWeeks) * 1000) / 10;
-  const isComplete = currentDate.getTime() >= graduationDate.getTime();
+  const progressPercent = Math.round((completedWeeks / totalWeeks) * 100);
+  const goalTitle = universityName.trim() || 'Your Goal';
 
-  const rows = safeDurationYears;
+  const rows = clamp(getGoalSpanYears(startDate, endDate), 1, 10);
   const cols = Math.ceil(totalWeeks / rows);
-
   const aspectRatio = height / width;
-  const sidePadding = width * (aspectRatio > 2.0 ? 0.12 : 0.1);
-  const contentCenterY = height * (aspectRatio > 2.0 ? 0.63 : 0.6);
 
-  const titleFontSize = Math.max(24, width * typography.fontSize * 0.82);
-  const metaFontSize = Math.max(14, titleFontSize * 0.58);
-  const statsFontSize = Math.max(15, width * typography.fontSize * 0.7);
+  const safeAreaTop = aspectRatio > 2.0
+    ? height * Math.max(layout.topPadding, 0.28)
+    : height * layout.topPadding;
+  const safeAreaBottom = height * layout.bottomPadding;
+  const adjustedSidePadding = aspectRatio > 2.1
+    ? Math.min(layout.sidePadding, 0.08)
+    : aspectRatio > 2.0
+      ? Math.min(layout.sidePadding, 0.09)
+      : layout.sidePadding;
+  const safeWidthPadding = width * adjustedSidePadding;
 
-  const previewGridWidth = Math.min(width * 0.62, width - sidePadding * 2);
-  const horizontalGap = Math.max(3, Math.floor(Math.max(layout.dotSpacing, 0.45) * 3));
-  const verticalGap = Math.max(8, Math.floor(Math.max(layout.dotSpacing, 0.5) * 7));
+  const availableWidth = width - safeWidthPadding * 2;
+  const availableHeight = height - safeAreaTop - safeAreaBottom;
+  const titleFontSize = Math.max(16, width * typography.fontSize * 0.9);
+  const footerFontSize = Math.max(15, width * typography.fontSize);
+  const titleSpace = titleFontSize * 2.2;
+  const footerSpace = typography.statsVisible ? footerFontSize * 3.1 : 0;
+  const gridAvailableHeight = Math.max(80, availableHeight - titleSpace - footerSpace);
 
-  const dotSizeFromWidth = (previewGridWidth - horizontalGap * (cols - 1)) / cols;
-  const dotSizeFromHeight = (height * 0.12 - verticalGap * (rows - 1)) / rows;
-  const dotSize = Math.max(3, Math.floor(Math.min(dotSizeFromWidth, dotSizeFromHeight, 14)));
+  const gap = Math.max(1, Math.floor(Math.max(layout.dotSpacing, 0.45) * 3));
+  const dotSizeFromWidth = (availableWidth - gap * (cols - 1)) / cols;
+  const dotSizeFromHeight = (gridAvailableHeight - gap * (rows - 1)) / rows;
+  const dotSize = Math.max(3, Math.floor(Math.min(dotSizeFromWidth, dotSizeFromHeight, 18)));
 
-  const gridWidth = cols * dotSize + (cols - 1) * horizontalGap;
-  const gridHeight = rows * dotSize + (rows - 1) * verticalGap;
-  const startX = (width - gridWidth) / 2;
-  const startY = contentCenterY - gridHeight / 2;
-  const titleY = startY - (titleFontSize + metaFontSize + 26);
-  const statsY = startY + gridHeight + 26;
-  const dateRowY = statsY + statsFontSize + 18;
+  const gridWidth = cols * dotSize + (cols - 1) * gap;
+  const gridHeight = rows * dotSize + (rows - 1) * gap;
+  const startX = Math.max(safeWidthPadding, (width - gridWidth) / 2);
+  const startY = safeAreaTop + Math.max(0, (gridAvailableHeight - gridHeight) / 2);
+  const titleY = Math.max(safeAreaTop * 0.8, startY - titleFontSize * 1.6);
+  const footerY = startY + gridHeight + footerFontSize * 1.7;
 
   const dots = [];
   for (let index = 0; index < totalWeeks; index++) {
     const row = Math.floor(index / cols);
     const col = index % cols;
-    const isCurrent = !isComplete && index === completedWeeks;
-    const isPast = index < completedWeeks;
-    const color = isCurrent ? colors.current : isPast ? colors.past : colors.future;
+    const color = index < completedWeeks
+      ? colors.past
+      : index === completedWeeks && completedWeeks < totalWeeks
+        ? colors.current
+        : colors.future;
 
     dots.push(
       <div
-        key={`student-dot-${index}`}
+        key={`goal-dot-${index}`}
         style={{
           position: 'absolute',
-          left: `${startX + col * (dotSize + horizontalGap)}px`,
-          top: `${startY + row * (dotSize + verticalGap)}px`,
+          left: `${startX + col * (dotSize + gap)}px`,
+          top: `${startY + row * (dotSize + gap)}px`,
           width: `${dotSize}px`,
           height: `${dotSize}px`,
           borderRadius: '50%',
@@ -134,20 +137,12 @@ export default function StudentView({
     );
   }
 
-  const programLabel = `${safeDurationYears} year${safeDurationYears === 1 ? '' : 's'}`;
-  const metaLabel = `Goal Calendar`;
-  const footerLabel = isComplete
-    ? `Completed | Graduated ${formatMonthYear(graduationDate)}`
-    : `${weeksRemaining}w left | ${progressPercent}% complete`;
-  const dateRowLabel = `${formatMonthYear(startDate)} | ${programLabel} | ${formatMonthYear(graduationDate)}`;
-
   return (
     <div
       style={{
         width: '100%',
         height: '100%',
         backgroundColor: colors.background,
-        backgroundImage: 'radial-gradient(circle at top, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0) 38%)',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -174,87 +169,40 @@ export default function StudentView({
         style={{
           position: 'absolute',
           top: `${titleY}px`,
-          left: `${sidePadding}px`,
-          width: `${width - sidePadding * 2}px`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '6px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          maxWidth: `${width * 0.72}px`,
+          fontSize: `${titleFontSize}px`,
+          fontFamily: typography.fontFamily,
+          color: colors.text,
           textAlign: 'center',
         }}
       >
-        <div
-          style={{
-            fontSize: `${titleFontSize}px`,
-            fontFamily: typography.fontFamily,
-            color: colors.past,
-            maxWidth: `${width * 0.68}px`,
-          }}
-        >
-          {universityName.trim()}
-        </div>
-        <div
-          style={{
-            fontSize: `${metaFontSize}px`,
-            fontFamily: typography.fontFamily,
-            color: colors.text,
-            textTransform: 'uppercase',
-            letterSpacing: '0.28em',
-          }}
-        >
-          {metaLabel}
-        </div>
+        {goalTitle}
       </div>
 
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-        }}
-      >
+      <div style={{ display: 'flex', position: 'relative', width: '100%', height: '100%' }}>
         {dots}
       </div>
 
       {typography.statsVisible && (
-        <>
-          <div
-            style={{
-              position: 'absolute',
-              top: `${statsY}px`,
-              left: `${sidePadding}px`,
-              width: `${width - sidePadding * 2}px`,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              fontSize: `${statsFontSize}px`,
-              fontFamily: typography.fontFamily,
-              color: colors.current,
-              textAlign: 'center',
-            }}
-          >
-            {footerLabel}
-          </div>
-
-          <div
-            style={{
-              position: 'absolute',
-              top: `${dateRowY}px`,
-              left: `${sidePadding}px`,
-              width: `${width - sidePadding * 2}px`,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              fontSize: `${Math.max(12, statsFontSize * 0.85)}px`,
-              fontFamily: typography.fontFamily,
-              color: colors.text,
-              textAlign: 'center',
-            }}
-          >
-            {dateRowLabel}
-          </div>
-        </>
+        <div
+          style={{
+            position: 'absolute',
+            top: `${footerY}px`,
+            left: '0px',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontSize: `${footerFontSize}px`,
+            fontFamily: typography.fontFamily,
+          }}
+        >
+          <span style={{ color: colors.current }}>{weeksRemaining}w left</span>
+          <span style={{ color: colors.text, margin: '0px 8px' }}>·</span>
+          <span style={{ color: colors.text }}>{progressPercent}%</span>
+        </div>
       )}
 
       {textElements.map((element) => {

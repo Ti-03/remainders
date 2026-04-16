@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
     const birthDate = searchParams.get('birthDate') || '';
     const rawStudyStartDate = searchParams.get('studyStartDate') || '';
     const rawUniversityName = searchParams.get('universityName') || '';
+    const rawGoalEndDate = searchParams.get('goalEndDate') || '';
     const rawStudyDurationYears = searchParams.get('studyDurationYears') || '';
 
     if (!isSafeWallpaperDimension(width, MIN_WIDTH, MAX_WIDTH) || !isSafeWallpaperDimension(height, MIN_HEIGHT, MAX_HEIGHT)) {
@@ -75,13 +76,14 @@ export async function GET(request: NextRequest) {
     }
 
     let studentInput:
-      | { studyStartDate: string; universityName: string; studyDurationYears: number }
+      | { studyStartDate: string; universityName: string; goalEndDate: string; studyDurationYears: number }
       | null = null;
 
     if (viewMode === 'student') {
       const normalized = normalizeStudentViewInput({
         studyStartDate: rawStudyStartDate,
         universityName: rawUniversityName,
+        goalEndDate: rawGoalEndDate,
         studyDurationYears: rawStudyDurationYears,
       });
 
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
           height={height}
           studyStartDate={studentInput.studyStartDate}
           universityName={studentInput.universityName}
-          studyDurationYears={studentInput.studyDurationYears}
+          goalEndDate={studentInput.goalEndDate}
         />
       );
     } else {
