@@ -1,7 +1,7 @@
 /**
  * Life View Component - Enhanced with Customization Support
  * 
- * Renders 4,160 dots representing 80 years of life (1 dot = 1 week).
+ * Renders 4,420 dots representing 85 years of life (1 dot = 1 week).
  * Now supports custom colors, typography, layout, text elements, and plugin additions.
  */
 
@@ -63,12 +63,12 @@ export default function LifeView({
   backgroundImage,
 }: LifeViewProps) {
   // Life Logic
-  const LIFE_EXPECTANCY_YEARS = 80;
+  const LIFE_EXPECTANCY_YEARS = 85;
   const birth = new Date(birthDate);
   const today = currentDate;
 
-  // Calculate total weeks (80 years × 52 weeks/year = 4,160 weeks)
-  const TOTAL_DOTS = 4160;
+  // Calculate total weeks (85 years × 52 weeks/year = 4,420 weeks)
+  const TOTAL_DOTS = 4420;
 
   const diffTime = Math.abs(today.getTime() - birth.getTime());
   const weeksLived = Math.min(Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7)), TOTAL_DOTS);

@@ -13,8 +13,10 @@ import { getUserConfigByUsername, getPlugin, logWallpaperEvent } from '@/lib/fir
 import { Plugin, UserConfig } from '@/lib/types';
 import { isPlanExpired } from '@/lib/plan-utils';
 import { loadPluginFromCode } from '@/lib/plugin-system';
+import { isSafeWallpaperDimension, normalizeStudentViewInput } from '@/lib/student-view';
 import { computeWallpaperHash, loadWallpaperCache, storeWallpaperCache } from '@/lib/wallpaper-cache';
 import LifeView from '../wallpaper/life-view-enhanced';
+import StudentView from '../wallpaper/student-view-enhanced';
 import YearView from '../wallpaper/year-view-enhanced';
 
 // Import plugins directly for server-side execution
@@ -57,6 +59,10 @@ function getDateInTimezone(timezone: string = 'UTC'): Date {
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_MAX = 100; // requests per window
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MIN_WIDTH = 300;
+const MAX_WIDTH = 3000;
+const MIN_HEIGHT = 300;
+const MAX_HEIGHT = 5000;
 
 function checkRateLimit(username: string): boolean {
   const now = Date.now();
@@ -180,9 +186,46 @@ export async function GET(
     if (!config.birthDate && config.viewMode === 'life') {
       return new Response('Birthdate is required for Life View. Please configure in dashboard.', { status: 400 });
     }
+
+    if (
+      config.viewMode === 'student' &&
+      (!config.studyStartDate || !config.universityName || (!config.goalEndDate && !config.studyDurationYears))
+    ) {
+      return new Response('Goal details are required for Goal View. Please configure in dashboard.', { status: 400 });
+    }
     
     if (!config.device || !config.device.width || !config.device.height) {
       return new Response('Device configuration is required. Please configure in dashboard.', { status: 400 });
+    }
+
+    if (
+      !isSafeWallpaperDimension(config.device.width, MIN_WIDTH, MAX_WIDTH) ||
+      !isSafeWallpaperDimension(config.device.height, MIN_HEIGHT, MAX_HEIGHT)
+    ) {
+      return new Response('Saved device configuration is outside the supported image size limits.', { status: 400 });
+    }
+
+    let studentInput:
+      | { studyStartDate: string; universityName: string; goalEndDate: string; studyDurationYears: number }
+      | null = null;
+
+    if (config.viewMode === 'student') {
+      const normalized = normalizeStudentViewInput({
+        studyStartDate: config.studyStartDate || '',
+        universityName: config.universityName || '',
+        goalEndDate: config.goalEndDate || '',
+        studyDurationYears: config.studyDurationYears || '',
+      });
+
+      if (!normalized.ok) {
+        return new Response(`Invalid goal view configuration: ${normalized.error}`, { status: 400 });
+      }
+
+      studentInput = normalized.value;
+      config.studyStartDate = studentInput.studyStartDate;
+      config.universityName = studentInput.universityName;
+      config.goalEndDate = studentInput.goalEndDate;
+      config.studyDurationYears = studentInput.studyDurationYears;
     }
 
     // Map of available built-in plugins
@@ -234,6 +277,10 @@ export async function GET(
           colors: config.colors,
           typography: config.typography,
           birthDate: config.birthDate,
+          studyStartDate: config.studyStartDate,
+          universityName: config.universityName,
+          goalEndDate: config.goalEndDate,
+          studyDurationYears: config.studyDurationYears,
           viewMode: config.viewMode,
           timezone: userTimezone,
           currentDate: currentDate,
@@ -278,6 +325,13 @@ export async function GET(
       view = LifeView({
         ...viewProps,
         birthDate: config.birthDate,
+      });
+    } else if (config.viewMode === 'student') {
+      view = StudentView({
+        ...viewProps,
+        studyStartDate: studentInput?.studyStartDate || '',
+        universityName: studentInput?.universityName || 'University',
+        goalEndDate: studentInput?.goalEndDate || '',
       });
     } else {
       view = YearView({

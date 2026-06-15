@@ -28,8 +28,9 @@ export interface DeviceModel {
  * View mode for the wallpaper visualization
  * - 'year': Shows only the current year (52 weeks)
  * - 'life': Shows entire life span (4160 weeks for 80 years)
+ * - 'student': Shows study progress from enrollment to graduation
  */
-export type ViewMode = 'year' | 'life';
+export type ViewMode = 'year' | 'life' | 'student';
 
 /**
  * Days layout mode for year view
@@ -45,6 +46,18 @@ export type DaysLayoutMode = 'calendar' | 'continuous';
 export interface UserProfile {
   /** Birth date in YYYY-MM-DD format (ISO 8601 date string) */
   birthDate: string;
+
+  /** Study start date in YYYY-MM-DD format */
+  studyStartDate?: string;
+
+  /** University name for student view */
+  universityName?: string;
+
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
+
+  /** Study duration in years */
+  studyDurationYears?: number;
   
   /** Theme color in hex format (e.g., "#FF6B35") */
   themeColor: string;
@@ -81,6 +94,18 @@ export interface UserProfile {
 export interface WallpaperParams {
   /** Birth date in YYYY-MM-DD format */
   birthDate: string;
+
+  /** Study start date in YYYY-MM-DD format */
+  studyStartDate?: string;
+
+  /** University name for student view */
+  universityName?: string;
+
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
+
+  /** Study duration in years */
+  studyDurationYears?: number;
   
   /** Theme color in hex format (without # symbol for URL encoding) */
   themeColor: string;
@@ -159,6 +184,18 @@ export interface UserConfig {
   
   /** Birth date in YYYY-MM-DD format */
   birthDate: string;
+
+  /** Study start date in YYYY-MM-DD format */
+  studyStartDate?: string;
+
+  /** University name for student view */
+  universityName?: string;
+
+  /** Goal end date in YYYY-MM-DD format */
+  goalEndDate?: string;
+
+  /** Study duration in years */
+  studyDurationYears?: number;
   
   /** View mode: year or life */
   viewMode: ViewMode;
@@ -313,6 +350,18 @@ export interface PluginExecutionContext {
   
   /** Birth date */
   birthDate?: string;
+
+  /** Study start date */
+  studyStartDate?: string;
+
+  /** University name */
+  universityName?: string;
+
+  /** Goal end date */
+  goalEndDate?: string;
+
+  /** Study duration in years */
+  studyDurationYears?: number;
   
   /** View mode */
   viewMode?: ViewMode;
@@ -374,6 +423,18 @@ export interface PluginContext {
   
   /** User's birthdate */
   birthDate: string;
+
+  /** Study start date */
+  studyStartDate?: string;
+
+  /** University name */
+  universityName?: string;
+
+  /** Goal end date */
+  goalEndDate?: string;
+
+  /** Study duration in years */
+  studyDurationYears?: number;
   
   /** Device dimensions */
   width: number;

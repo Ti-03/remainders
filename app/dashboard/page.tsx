@@ -12,6 +12,7 @@ import { saveUserProfile, saveUserConfig, isUsernameAvailable, getUserConfigByUs
 import { UserConfig, DeviceModel, ViewMode, Plugin, PluginConfig, TextElement, DaysLayoutMode, BackgroundImage } from '@/lib/types';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import BirthDateInput from '@/components/BirthDateInput';
+import StudentDetailsInput from '@/components/StudentDetailsInput';
 import DeviceSelector from '@/components/DeviceSelector';
 import ThemeColorPicker from '@/components/ThemeColorPicker';
 import PluginMarketplace from '@/components/PluginMarketplace';
@@ -19,6 +20,7 @@ import TextElementsEditor from '@/components/TextElementsEditor';
 import BackgroundPicker from '@/components/BackgroundPicker';
 import { PRESET_THEMES, getThemeByName, Theme } from '@/lib/themes';
 import { seedExamplePlugins } from '@/lib/seed-plugins';
+import { deriveGoalEndDateFromDuration } from '@/lib/student-view';
 
 /** Returns remaining days until expiry, or null if no expiry. Negative = expired. */
 function getDaysRemaining(planExpiresAt: any): number | null {
@@ -42,6 +44,9 @@ export default function DashboardPage() {
   // Wallpaper config
   const [viewMode, setViewMode] = useState<ViewMode>('life');
   const [birthDate, setBirthDate] = useState('');
+  const [studyStartDate, setStudyStartDate] = useState('');
+  const [universityName, setUniversityName] = useState('');
+  const [goalEndDate, setGoalEndDate] = useState('');
   const [selectedDevice, setSelectedDevice] = useState<DeviceModel | null>(null);
   const [isMondayFirst, setIsMondayFirst] = useState(false);
   const [yearViewLayout, setYearViewLayout] = useState<'months' | 'days'>('months');
@@ -104,11 +109,15 @@ export default function DashboardPage() {
   // Auto-save with debouncing
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveStatusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate if config is complete (needed before useEffects)
-  const isConfigComplete = viewMode === 'year' 
-    ? selectedDevice !== null 
-    : (birthDate && selectedDevice);
+  const isConfigComplete = viewMode === 'year'
+    ? selectedDevice !== null
+    : viewMode === 'life'
+      ? Boolean(birthDate && selectedDevice)
+      : Boolean(studyStartDate && universityName.trim() && goalEndDate && selectedDevice);
 
   useEffect(() => {
     setMounted(true);
@@ -148,6 +157,9 @@ export default function DashboardPage() {
       backgroundImage: JSON.stringify(backgroundImage),
       viewMode,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      goalEndDate,
       isMondayFirst,
       yearViewLayout,
       daysLayoutMode,
@@ -164,6 +176,9 @@ export default function DashboardPage() {
       backgroundImage: JSON.stringify(config.backgroundImage ?? null),
       viewMode: config.viewMode,
       birthDate: config.birthDate,
+      studyStartDate: config.studyStartDate,
+      universityName: config.universityName,
+      goalEndDate: config.goalEndDate || deriveGoalEndDateFromDuration(config.studyStartDate || '', config.studyDurationYears),
       isMondayFirst: config.isMondayFirst,
       yearViewLayout: config.yearViewLayout,
       daysLayoutMode: config.daysLayoutMode,
@@ -184,7 +199,16 @@ export default function DashboardPage() {
       // Set new timeout for auto-save
       saveTimeoutRef.current = setTimeout(() => {
         setAutoSaving(true);
-        saveConfig().finally(() => {
+        setSaveStatus('saving');
+        saveConfig().then(() => {
+          setSaveStatus('saved');
+          if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+          saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
+        }).catch(() => {
+          setSaveStatus('error');
+          if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+          saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000);
+        }).finally(() => {
           setAutoSaving(false);
         });
       }, 2000); // 2 seconds after last change
@@ -196,7 +220,7 @@ export default function DashboardPage() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [colors, fontFamily, fontSize, statsVisible, layout, plugins, textElements, backgroundImage, viewMode, birthDate, isMondayFirst, yearViewLayout, daysLayoutMode, timezone, selectedDevice, config, isConfigComplete]);
+  }, [colors, fontFamily, fontSize, statsVisible, layout, plugins, textElements, backgroundImage, viewMode, birthDate, studyStartDate, universityName, goalEndDate, isMondayFirst, yearViewLayout, daysLayoutMode, timezone, selectedDevice, config, isConfigComplete]);
 
   const loadUserConfig = async (username: string) => {
     const { data } = await getUserConfigByUsername(username);
@@ -205,6 +229,13 @@ export default function DashboardPage() {
       setConfig(cfg);
       setViewMode(cfg.viewMode || 'life');
       setBirthDate(cfg.birthDate || '');
+      setStudyStartDate(cfg.studyStartDate || '');
+      setUniversityName(cfg.universityName || '');
+      setGoalEndDate(
+        cfg.goalEndDate ||
+        deriveGoalEndDateFromDuration(cfg.studyStartDate || '', cfg.studyDurationYears) ||
+        ''
+      );
       setIsMondayFirst(cfg.isMondayFirst || false);
       setYearViewLayout(cfg.yearViewLayout || 'months');
       setDaysLayoutMode(cfg.daysLayoutMode || 'continuous');
@@ -279,6 +310,9 @@ export default function DashboardPage() {
         plugins: [],
         viewMode: viewMode,
         birthDate: birthDate,
+        studyStartDate: studyStartDate,
+        universityName: universityName.trim(),
+        goalEndDate: goalEndDate,
         isMondayFirst: isMondayFirst,
         yearViewLayout: yearViewLayout,
         daysLayoutMode: daysLayoutMode,
@@ -421,6 +455,9 @@ export default function DashboardPage() {
       layout,
       viewMode,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      goalEndDate,
       isMondayFirst,
       yearViewLayout,
       daysLayoutMode,
@@ -458,6 +495,13 @@ export default function DashboardPage() {
         if (imported.layout) setLayout(imported.layout);
         if (imported.viewMode) setViewMode(imported.viewMode);
         if (imported.birthDate) setBirthDate(imported.birthDate);
+        if (imported.studyStartDate) setStudyStartDate(imported.studyStartDate);
+        if (imported.universityName) setUniversityName(imported.universityName);
+        if (imported.goalEndDate !== undefined) {
+          setGoalEndDate(imported.goalEndDate);
+        } else if (imported.studyDurationYears !== undefined) {
+          setGoalEndDate(deriveGoalEndDateFromDuration(imported.studyStartDate || '', imported.studyDurationYears));
+        }
         if (imported.isMondayFirst !== undefined) setIsMondayFirst(imported.isMondayFirst);
         if (imported.yearViewLayout) setYearViewLayout(imported.yearViewLayout);
         if (imported.daysLayoutMode) setDaysLayoutMode(imported.daysLayoutMode);
@@ -511,6 +555,9 @@ export default function DashboardPage() {
         userId: user.uid,
         username: userProfile.username,
         birthDate,
+        studyStartDate,
+        universityName: universityName.trim(),
+        goalEndDate,
         viewMode,
         device: selectedDevice ? {
           brand: selectedDevice.brand,
@@ -559,6 +606,9 @@ export default function DashboardPage() {
       userId: user.uid,
       username: userProfile.username,
       birthDate,
+      studyStartDate,
+      universityName: universityName.trim(),
+      goalEndDate,
       viewMode,
       device: selectedDevice ? {
         brand: selectedDevice.brand,
@@ -667,6 +717,13 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {hasUnsavedChanges && (
+              <div className="flex items-center gap-2 text-xs text-yellow-500 px-1">
+                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full flex-shrink-0" />
+                Unsaved changes will be saved automatically once setup is complete.
+              </div>
+            )}
+
             <button
               onClick={handleSaveUsername}
               disabled={!usernameAvailable || savingUsername}
@@ -690,6 +747,30 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-sm tracking-widest uppercase">Dashboard</h1>
             <code className="text-xs text-neutral-500">/api/{userProfile.username}</code>
+          </div>
+          {/* Save-status widget */}
+          <div className={`flex items-center gap-1.5 text-xs transition-opacity duration-300 ${saveStatus === 'idle' && !hasUnsavedChanges ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            {saveStatus === 'saving' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-neutral-400">Saving...</span>
+              </>
+            ) : saveStatus === 'saved' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                <span className="text-green-500">All changes saved</span>
+              </>
+            ) : saveStatus === 'error' ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                <span className="text-red-400">Save failed</span>
+              </>
+            ) : hasUnsavedChanges ? (
+              <>
+                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                <span className="text-yellow-500">Unsaved changes</span>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -860,6 +941,18 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <BirthDateInput value={birthDate} onChange={setBirthDate} />
             </div>
+          )}
+
+          {viewMode === 'student' && (
+            <StudentDetailsInput
+              studyStartDate={studyStartDate}
+              universityName={universityName}
+              goalEndDate={goalEndDate}
+              selectedDeviceLabel={selectedDevice?.model || ''}
+              onStudyStartDateChange={setStudyStartDate}
+              onUniversityNameChange={setUniversityName}
+              onGoalEndDateChange={setGoalEndDate}
+            />
           )}
 
           {/* Device Selector */}
@@ -1503,6 +1596,9 @@ export default function DashboardPage() {
           <div className="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-2 shadow-lg">
             <div className="text-xs text-red-400">
               {viewMode === 'life' && !birthDate && '⚠ Please enter your birth date'}
+              {viewMode === 'student' && !studyStartDate && '⚠ Please enter your study start date'}
+              {viewMode === 'student' && studyStartDate && !universityName.trim() && '⚠ Please enter your university'}
+              {viewMode === 'student' && studyStartDate && universityName.trim() && !goalEndDate && '⚠ Please enter your goal end date'}
               {!selectedDevice && '⚠ Please select a device'}
             </div>
           </div>
