@@ -13,14 +13,14 @@ export function LifeView({ width, height, birthDate }: LifeViewProps) {
     const FUTURE_COLOR = '#333333'; // Dark grey
 
     // Life Logic
-    const LIFE_EXPECTANCY_YEARS = 80;
+    const LIFE_EXPECTANCY_YEARS = 85;
     const birth = new Date(birthDate);
     const today = new Date();
 
     // Calculate total weeks
-    // 80 years * 52 weeks/year = 4160 weeks
+    // 85 years * 52 weeks/year = 4420 weeks
     // Each dot represents one week of life
-    const TOTAL_DOTS = 4160;
+    const TOTAL_DOTS = 4420;
 
     const diffTime = Math.abs(today.getTime() - birth.getTime());
     const weeksLived = Math.min(Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7)), TOTAL_DOTS);
