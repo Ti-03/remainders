@@ -260,6 +260,15 @@ export async function GET(
       }
     }
 
+
+if (!backgroundImageProp) {
+  backgroundImageProp = {
+    url: new URL('/statue-memento.webp', request.nextUrl.origin).toString(),
+    opacity: 0.7,
+  };
+}
+
+    
     // Prepare view props
     const viewProps = {
       width: config.device.width,
