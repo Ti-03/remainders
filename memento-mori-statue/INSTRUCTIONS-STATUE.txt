@@ -1,0 +1,22 @@
+AJOUT DE LA STATUE AU MEMENTO MORI - patt-a/remainders
+
+1. Ajouter le fichier statue-memento.webp dans le dossier public/ du depot GitHub.
+2. Dans app/api/[username]/route.tsx, sous le bloc qui construit backgroundImageProp
+   et juste avant le commentaire "// Prepare view props", ajouter ce code :
+
+    if (!backgroundImageProp) {
+      backgroundImageProp = {
+        url: new URL('/statue-memento.webp', request.nextUrl.origin).toString(),
+        opacity: 0.7,
+      };
+    }
+
+3. Commit, deployer sur Vercel et tester l'URL habituelle du fond d'ecran.
+4. Si tu utilises deja un fond d'ecran selectionne dans le tableau de bord,
+   celui-ci est prioritaire et la statue ne s'affichera pas. Efface la selection
+   existante pour afficher la statue.
+
+Le calendrier et la date restent dynamiques. Ne remplace pas ton URL iPhone.
+
+ATTENTION : Ce paquet n'est pas applique a GitHub, car la connexion n'a pas
+autorise l'ecriture (HTTP 403 lors de la creation de branche).
