@@ -1,0 +1,19 @@
+diff --git a/app/api/[username]/route.tsx b/app/api/[username]/route.tsx
+--- a/app/api/[username]/route.tsx
++++ b/app/api/[username]/route.tsx
+@@ -261,6 +261,14 @@
+       }
+     }
+ 
++    // Personal statue wallpaper. Keep the existing user-selected background
++    // when present; otherwise use the local statue image on both Life/Year views.
++    // The calendar, current date and daily updates are unchanged.
++    if (!backgroundImageProp) {
++      backgroundImageProp = {
++        url: new URL('/statue-memento.webp', request.nextUrl.origin).toString(),
++        opacity: 0.7,
++      };
++    }
++
+     // Prepare view props
+     const viewProps = {

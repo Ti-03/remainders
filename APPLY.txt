@@ -1,0 +1,6 @@
+Branche locale: feat/custom-statue-background
+Pour appliquer sur un clone propre :
+git switch -c feat/custom-statue-background
+git am /chemin/remainders-statue.patch
+
+La publication GitHub a ete refusee avec HTTP 403. Aucune PR ni mise en production n'a ete effectuee.
